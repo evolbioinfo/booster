@@ -1,4 +1,4 @@
-# booster: BOOtstrap Support by Transfer
+# booster: BOOtstrap Support by TransfER
 This tool is dedicated to compute bootstrap supports using transfer distance.
 
 # Help
