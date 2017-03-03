@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <libgen.h>
 
-#define NAME "BSTools"
+#define NAME "booster"
 
 /** 
     Prints the version of the tools
