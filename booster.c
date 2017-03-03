@@ -184,7 +184,7 @@ int main (int argc, char* argv[]) {
     }
   }
 
-  printOptions(stderr, input_tree, boot_trees, out_tree, stat_out, seed, num_threads, quiet);
+  if(!quiet) printOptions(stderr, input_tree, boot_trees, out_tree, stat_out, seed, num_threads, quiet);
 
   intree_file = fopen(input_tree,"r");
   if (intree_file == NULL) {
@@ -206,7 +206,6 @@ int main (int argc, char* argv[]) {
     Generic_Exit(__FILE__,__LINE__,__FUNCTION__,EXIT_FAILURE);
   }
   fclose(intree_file);
-  //DEBUG printf("This is the tree string I am going to analyse: \"%s\"\n", big_string);
 
   /* and then feed this string to the parser */
   char** taxname_lookup_table = NULL;
@@ -245,7 +244,6 @@ int main (int argc, char* argv[]) {
   struct dirent **matching_files;
 
   int num_bootstrap_files = scandir(dir_name, &matching_files, filename_filter, alphasort);
-  /* printf("\nGoing to analyse %d files containing bootstrap trees.\n", num_bootstrap_files); */
 
   int init_boot_trees = 10;
   int i_tree;
@@ -261,7 +259,6 @@ int main (int argc, char* argv[]) {
   int file_index, num_trees = 0; /* this is the number of trees really analyzed */
 	
   for (file_index = 0; file_index < num_bootstrap_files; file_index++) {
-    /* printf("\n*** Processing file %s ***\n", matching_files[file_index]->d_name); */
     strcpy(tree_filename+str_offset, matching_files[file_index]->d_name); /* includes the null termination */
 	  
     boottree_file = fopen(tree_filename,"r");
@@ -278,7 +275,6 @@ int main (int argc, char* argv[]) {
     /* we copy the tree into a large string */
     while(copy_nh_stream_into_str(boottree_file, big_string)) /* reads from the current point in the stream, retcode 1 iff no error */
       {
-	/* fprintf(stderr,"\n*** Processing one boot tree  ***\n"); */
 	if(num_trees >= init_boot_trees){
 	  alt_tree_strings = realloc(alt_tree_strings,init_boot_trees*2*sizeof(char*));
 	  init_boot_trees *= 2;
@@ -289,7 +285,7 @@ int main (int argc, char* argv[]) {
     fclose(boottree_file);
   } /* end of the loop on all the bootstrap files */
 
-  fprintf(stderr,"Num trees: %d\n",num_trees);
+  if(!quiet)  fprintf(stderr,"Num trees: %d\n",num_trees);
   
   dist_accu_tmp      = (int**) calloc(num_trees,sizeof(int*)); /* array of distance sums, one per boot tree and branch. Initialized to 0. */
   for(i_tree=0; i_tree< num_trees; i_tree++){
@@ -298,7 +294,7 @@ int main (int argc, char* argv[]) {
 
   #pragma omp parallel for firstprivate(seed) private(min_dist,c_matrix,i_matrix,hamming,i,alt_tree) shared(max_branches_boot, ref_tree, alt_tree_strings, dist_accu_tmp, taxname_lookup_table, m) schedule(dynamic)
   for(i_tree=0; i_tree< num_trees; i_tree++){
-    fprintf(stderr,"New bootstrap tree\n");
+    if(!quiet) fprintf(stderr,"New bootstrap tree\n");
     seed ^= (omp_get_thread_num() + i_tree);
     prng_seed_bytes (&seed, sizeof(seed));
     alt_tree = complete_parse_nh(alt_tree_strings[i_tree], &taxname_lookup_table);
@@ -323,7 +319,6 @@ int main (int argc, char* argv[]) {
     update_all_i_c_post_order_ref_tree(ref_tree, alt_tree, i_matrix, c_matrix);
     update_all_i_c_post_order_boot_tree(ref_tree, alt_tree, i_matrix, c_matrix, hamming, min_dist);
     /* output, just to see */
-    /* fprintf(stderr,"nb taxa: %d, nb edges: %d\n", n,m); */
     for (i = 0; i < m; i++) {
       /* Just backup for pvalue computation */
       dist_accu_tmp[i_tree][i] = min_dist[i];
@@ -349,8 +344,6 @@ int main (int argc, char* argv[]) {
       fprintf(stat_file,"EdgeId\tDepth\tMeanMinDist\n");
 
     /* OUTPUT FINAL STATISTICS and UPDATE REF TREE WITH BOOTSTRAP VALUES */
-    /* printf("\n*******\nFINAL STATS\n*******\n"); */
-    /* printf("%d bootstrap trees successfully analysed\n", num_trees); */
     for (i = 0; i <  ref_tree->nb_edges; i++) {
       if(ref_tree->a_edges[i]->right->nneigh == 1) { continue; }
 
