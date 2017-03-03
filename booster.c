@@ -461,7 +461,7 @@ int main (int argc, char* argv[]) {
       if(stat_file != NULL)
 	fprintf(stat_file,"%d\t%d\t%f\t%f\t%f\n", i, (ref_tree->a_edges[i]->topo_depth), avg_dist, avg_rand_dist, pvalue);
 
-      sprintf(ref_tree->a_edges[i]->right->name, "%.2f/%.4f", bootstrap_val, pvalue);
+      sprintf(ref_tree->a_edges[i]->right->name, "%.6f", bootstrap_val);
 
       ref_tree->a_edges[i]->branch_support = bootstrap_val;
       /* printf("mast-like stability: %s\n", ref_tree->a_edges[i]->right->name); */
