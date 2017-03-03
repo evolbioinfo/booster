@@ -17,27 +17,20 @@ int filename_filter(const struct dirent *file_to_test) {
 
 void usage(FILE * out,char *name){
   fprintf(out,"Usage: ");
-  fprintf(out,"%s -i <tree file> -b <bootstrap prefix or file> [-r <# rand shufling> -n <normalization> -@ <cpus> -s <seed> -S <stat file> -o <output tree> -v]\n",name);
+  fprintf(out,"%s -i <tree file> -b <bootstrap prefix or file> [-@ <cpus> -s <seed> -S <stat file> -o <output tree> -v]\n",name);
   fprintf(out,"Options:\n");
-  fprintf(out,"      -i : Input tree file\n");
-  fprintf(out,"      -b : Bootstrap prefix (e.g. boot_) or file containing several bootstrap trees\n");
-  fprintf(out,"      -o : Output file (optional), default : stdout\n");
-  fprintf(out,"      -@ : Number of threads (default 1)\n");
-  fprintf(out,"      -s : Seed (optional)\n");
-  fprintf(out,"      -S : Prints output statistics for each branch in the given output file\n");
-  fprintf(out,"      -r : Number of random shuffling (for empirical norm only). Default: 10\n");
-  fprintf(out,"      -n : Sets the normalization strategy to \"auto\" (default), \"empirical\" or \"theoretical\"\n");
-  fprintf(out,"          - empirical      : Normalizes the support by the expected mast distance computed\n");
-  fprintf(out,"                             using random trees (shuffled from the reference tree)\n");
-  fprintf(out,"          - theoretical    : Normalizes the support by the expected mast distance computed as\n");
-  fprintf(out,"                             p-1, p=the number of taxa on the lightest side of the bipartition\n");
-  fprintf(out,"          - auto (default) : Will choose automatically : empirical if < 1000 taxa, theoretical\n");
-  fprintf(out,"                             otherwise\n");
-  fprintf(out,"      -v : Prints version (optional)\n");
-  fprintf(out,"      -h : Prints this help\n");
+  fprintf(out,"      -i, --input      : Input tree file\n");
+  fprintf(out,"      -b, --boot       : Bootstrap prefix (e.g. boot_) or file containing several bootstrap trees\n");
+  fprintf(out,"      -o, --out        : Output file (optional), default : stdout\n");
+  fprintf(out,"      -@, --num-threads: Number of threads (default 1)\n");
+  fprintf(out,"      -s, --seed       : Seed (optional)\n");
+  fprintf(out,"      -S, --stat-file  : Prints output statistics for each branch in the given output file\n");
+  fprintf(out,"      -q, --quiet      : Does not print progress messages during analysis\n");
+  fprintf(out,"      -v, --version    : Prints version (optional)\n");
+  fprintf(out,"      -h, --help       : Prints this help\n");
 }
 
-void printOptions(FILE * out,char* input_tree,char * boot_trees, char * output_tree, char *output_stat, char *norm_strategy, long seed, int nb_threads, int nb_rand_shuf){
+void printOptions(FILE * out,char* input_tree,char * boot_trees, char * output_tree, char *output_stat, long seed, int nb_threads, int quiet){
   fprintf(out,"**************************\n");
   fprintf(out,"*         Options        *\n");
   fprintf(out,"**************************\n");
@@ -52,10 +45,12 @@ void printOptions(FILE * out,char* input_tree,char * boot_trees, char * output_t
     fprintf(out,"Stat file       : None\n");
   else
     fprintf(out,"Stat file       : %s\n",output_stat);
-  fprintf(out,"Normalization   : %s\n", norm_strategy);
-  fprintf(out,"Nb Rand Shuf    : %d\n", nb_rand_shuf);
   fprintf(out,"Seed            : %ld\n", seed);
   fprintf(out,"Threads         : %d\n", nb_threads);
+  if(quiet)
+    fprintf(out,"Quiet           : true\n");
+  else
+    fprintf(out,"Quiet           : false\n");
   fprintf(out,"**************************\n");
 }
 
@@ -110,19 +105,12 @@ int main (int argc, char* argv[]) {
   char *out_tree = NULL;
   char *stat_out = NULL;
 
-  char *norm_strategy = "auto";
-  /* true if normalization strategy is done by computing (equation) and not 
-     generating random trees*/
-  int norm_theoretical = 0;
-  
   Tree *ref_tree;
-  Tree *shuf_tree;
   char **alt_tree_strings;
   Tree *alt_tree;
 
-  /* Number of random tax shuffle per bootstrap tree */
-  int nb_random = 10;
-  int shuf = 0;
+  int quiet = 0;
+  
   int num_threads = 1;
 	
   static struct option long_options[] = {
@@ -132,10 +120,9 @@ int main (int argc, char* argv[]) {
     {"seed" , required_argument, 0, 's'},
     {"stat-file"  , required_argument, 0, 'S'},
     {"num-threads", required_argument, 0,'@'},
-    {"normalization", required_argument, 0, 'n'},
-    {"num-rand-shuf", required_argument, 0, 'r'},
     {"help" , no_argument      , 0, 'h'},
     {"version", no_argument      , 0, 'v'},
+    {"quiet", no_argument      , 0, 'q'},
     {0, 0, 0, 0}
   };
 
@@ -150,10 +137,9 @@ int main (int argc, char* argv[]) {
     case '@': num_threads=strtol(optarg,NULL,10); break; 
     case 's': seed = strtol(optarg,NULL,10); break;
     case 'S': stat_out = optarg; break;
-    case 'r': nb_random = strtol(optarg,NULL,10); break;
-    case 'n': norm_strategy = optarg; break;
+    case 'q': quiet = 1; break;
     case 'h': usage(stdout,argv[0]); return EXIT_SUCCESS; break; 
-    case 'v': version(stdout,argv[0]); return EXIT_SUCCESS; break; 
+    case 'v': version(stdout,argv[0]); return EXIT_SUCCESS; break;
     case ':': fprintf(stderr, "Option -%c requires an argument\n", optopt); return EXIT_FAILURE; break;
     case '?': fprintf(stderr, "Option -%c is undefined\n", optopt); return EXIT_FAILURE; break;
     }
@@ -198,18 +184,7 @@ int main (int argc, char* argv[]) {
     }
   }
 
-  if(norm_strategy==NULL ||
-     (strcmp(norm_strategy,"empirical") &&
-      strcmp(norm_strategy,"theoretical") &&
-      strcmp(norm_strategy,"auto"))){
-    fprintf(stderr,"Normalization strategy must be one of \"empirical\", \"theoretical\" or \"auto\"\n");
-    Generic_Exit(__FILE__,__LINE__,__FUNCTION__,EXIT_FAILURE);
-  }else{
-    if(!strcmp(norm_strategy,"theoretical"))
-      norm_theoretical = 1;
-  }
-  
-  printOptions(stderr, input_tree, boot_trees, out_tree, stat_out, norm_strategy, seed, num_threads, nb_random);
+  printOptions(stderr, input_tree, boot_trees, out_tree, stat_out, seed, num_threads, quiet);
 
   intree_file = fopen(input_tree,"r");
   if (intree_file == NULL) {
@@ -236,11 +211,6 @@ int main (int argc, char* argv[]) {
   /* and then feed this string to the parser */
   char** taxname_lookup_table = NULL;
   ref_tree  = complete_parse_nh(big_string, &taxname_lookup_table); /* sets taxname_lookup_table en passant */
-  shuf_tree = complete_parse_nh(big_string, &taxname_lookup_table); /* sets taxname_lookup_table en passant */
-
-  if(!strcmp(norm_strategy,"auto") && ref_tree->nb_taxa>1000){
-    norm_theoretical = 1;
-  }
 
   /*****************************************************************************/
   /* Preparing the bootstrap: arrays of counts and Hamming distances.          */
@@ -262,12 +232,6 @@ int main (int argc, char* argv[]) {
 
   int *dist_accu      = (int*) calloc(m,sizeof(int)); /* array of distance sums, one per branch. Initialized to 0. */
   int **dist_accu_tmp;
-  int **dist_accu_rand;
-  int *dist_accu_rand_sum;
-
-  /* For p.value computation */
-  int **nb_gt_rand;
-  int *nb_gt_rand_sum;
 
   /* initializations of the above: see inside loop */
 
@@ -328,14 +292,8 @@ int main (int argc, char* argv[]) {
   fprintf(stderr,"Num trees: %d\n",num_trees);
   
   dist_accu_tmp      = (int**) calloc(num_trees,sizeof(int*)); /* array of distance sums, one per boot tree and branch. Initialized to 0. */
-  dist_accu_rand     = (int**) calloc(num_trees,sizeof(int*)); /* array of distance sums, one per branch. Initialized to 0. */
-  nb_gt_rand         = (int**) calloc(num_trees,sizeof(int*)); /* array of distance sums, one per branch. Initialized to 0. */
-  nb_gt_rand_sum     = (int*) calloc(m,sizeof(int)); /* array of distance sums, one per branch. Initialized to 0. */
-  dist_accu_rand_sum = (int*) calloc(m,sizeof(int)); /* array of distance sums, one per branch. Initialized to 0. */
   for(i_tree=0; i_tree< num_trees; i_tree++){
     dist_accu_tmp[i_tree]  = (int*) calloc(m,sizeof(int)); /* array of distance sums, one per branch. Initialized to 0. */
-    dist_accu_rand[i_tree]  = (int*) calloc(m,sizeof(int)); /* array of distance sums, one per branch. Initialized to 0. */
-    nb_gt_rand[i_tree] = (int*) calloc(m,sizeof(int)); /* array of distance sums, one per branch. Initialized to 0. */
   }
 
   #pragma omp parallel for firstprivate(seed) private(min_dist,c_matrix,i_matrix,hamming,i,alt_tree) shared(max_branches_boot, ref_tree, alt_tree_strings, dist_accu_tmp, taxname_lookup_table, m) schedule(dynamic)
@@ -383,89 +341,34 @@ int main (int argc, char* argv[]) {
     }
   }
 
-  for(shuf = 0; !norm_theoretical && shuf < nb_random ; shuf++){
-    #pragma omp barrier
-    fprintf(stderr,"Shuffle n°%d\n", shuf);
-    shuffle_taxa(shuf_tree);
-    #pragma omp parallel for private(min_dist,c_matrix,i_matrix,hamming,i,alt_tree) shared(max_branches_boot, shuf,shuf_tree, alt_tree_strings, nb_gt_rand, dist_accu_rand, dist_accu_tmp, taxname_lookup_table, m) schedule(dynamic)
-    for(i_tree=0; i_tree< num_trees; i_tree++){
-      alt_tree = complete_parse_nh(alt_tree_strings[i_tree], &taxname_lookup_table);
-
-      if (alt_tree == NULL) {
-	fprintf(stderr,"Not a correct NH tree (%d). Skipping.\n%s\n",i_tree,alt_tree_strings[i_tree]);
-	continue; /* some files maybe not containing trees */
-      }
-      if (alt_tree->nb_taxa != shuf_tree->nb_taxa) {
-	fprintf(stderr,"This tree doesn't have the same number of taxa as the reference tree. Skipping.\n");
-	continue; /* some files maybe not containing trees */
-      }
-      reset_matrices(n, m, max_branches_boot, &c_matrix, &i_matrix, &hamming, &min_dist);
-
-      /* We do the same thing with nb_rand taxa shuffled original trees */
-      for (i = 0; i < m; i++) {
-	min_dist[i] = n; /* initialization to the nb of taxa */
-      }
-      update_all_i_c_post_order_ref_tree(shuf_tree, alt_tree, i_matrix, c_matrix);
-      update_all_i_c_post_order_boot_tree(shuf_tree, alt_tree, i_matrix, c_matrix, hamming, min_dist);
-      for (i = 0; i < m; i++) {
-	if(dist_accu_tmp[i_tree][i] >= min_dist[i])
-	  nb_gt_rand[i_tree][i]++;
-	dist_accu_rand[i_tree][i] += min_dist[i];
-      }
-      free_matrices(m, &c_matrix, &i_matrix, &hamming, &min_dist);
-      free_tree(alt_tree);
-    }
-  } /* end of the while loop on the retcode of read_from_string not being 0 */
-
-  /* After all parallel computations, we aggregate all data */
-  for(i_tree=0; i_tree < num_trees; i_tree++){
-    for (i = 0; i < m; i++){
-      if(norm_theoretical){
-	dist_accu_rand_sum[i] += nb_random * (ref_tree->a_edges[i]->topo_depth-1);
-      }else{
-	nb_gt_rand_sum[i] += nb_gt_rand[i_tree][i];
-	dist_accu_rand_sum[i] += dist_accu_rand[i_tree][i];
-      }
-    }
-  }
-
   int card;
-  double bootstrap_val, avg_dist, avg_rand_dist, pvalue;
+  double bootstrap_val, avg_dist;
 		
   if(num_trees != 0) {
     if(stat_file != NULL)
-      fprintf(stat_file,"EdgeId\tDepth\tMeanMinDist\tMeanMinDistRand\tPValue\n");
+      fprintf(stat_file,"EdgeId\tDepth\tMeanMinDist\n");
 
     /* OUTPUT FINAL STATISTICS and UPDATE REF TREE WITH BOOTSTRAP VALUES */
     /* printf("\n*******\nFINAL STATS\n*******\n"); */
     /* printf("%d bootstrap trees successfully analysed\n", num_trees); */
     for (i = 0; i <  ref_tree->nb_edges; i++) {
-      /* printf("Edge#%d: ", i); */
       if(ref_tree->a_edges[i]->right->nneigh == 1) { continue; }
-      /*if(ref_tree->a_edges[i]->had_zero_length) { continue; }*/
 
       /* the bootstrap value for a branch is inscribed as the name of its descendant (always right side of the edge, by convention) */
       if(ref_tree->a_edges[i]->right->name) free(ref_tree->a_edges[i]->right->name); /* clear name if existing */
       ref_tree->a_edges[i]->right->name = (char*) malloc(16 * sizeof(char));
       card = ref_tree->a_edges[i]->hashtbl[1]->num_items;
       if (card > n/2) { card = n - card; }	  
-
       avg_dist      = (double) dist_accu[i] * 1.0 / num_trees;
-      avg_rand_dist = (double) dist_accu_rand_sum[i] * 1.0 / (num_trees * nb_random);
-      if(norm_theoretical)
-	pvalue = 1;
-      else
-	pvalue        = (double) nb_gt_rand_sum[i] * 1.0 / (num_trees * nb_random);
-      bootstrap_val = (double) 1.0 - avg_dist * 1.0 / avg_rand_dist;
+      bootstrap_val = (double) 1.0 - avg_dist * 1.0 / (1.0 * ref_tree->a_edges[i]->topo_depth-1.0);
 
       if(stat_file != NULL)
-	fprintf(stat_file,"%d\t%d\t%f\t%f\t%f\n", i, (ref_tree->a_edges[i]->topo_depth), avg_dist, avg_rand_dist, pvalue);
+	fprintf(stat_file,"%d\t%d\t%f\n", i, (ref_tree->a_edges[i]->topo_depth), avg_dist);
 
       sprintf(ref_tree->a_edges[i]->right->name, "%.6f", bootstrap_val);
 
       ref_tree->a_edges[i]->branch_support = bootstrap_val;
-      /* printf("mast-like stability: %s\n", ref_tree->a_edges[i]->right->name); */
-    } /* end for */
+    }
 
     write_nh_tree(ref_tree, output_file);
   }
@@ -485,15 +388,9 @@ int main (int argc, char* argv[]) {
   for(i_tree=0; i_tree < num_trees;i_tree++){
     free(dist_accu_tmp[i_tree]);
     free(alt_tree_strings[i_tree]);
-    free(dist_accu_rand[i_tree]);
-    free(nb_gt_rand[i_tree]);
   }
-  free(dist_accu_rand);
-  free(dist_accu_rand_sum);
   free(alt_tree_strings);
   free(dist_accu_tmp);
-  free(nb_gt_rand);
-  free(nb_gt_rand_sum);
 
   /* we also have to free the taxname lookup table */
   for(i=0; i < ref_tree->nb_taxa; i++) free(taxname_lookup_table[i]); /* freeing (char*)'s */
