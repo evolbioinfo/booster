@@ -1,7 +1,23 @@
-# booster: BOOtstrap Support by TransfER
+# BOOSTER : BOOtstrap Support by TransfER
 This tool is dedicated to compute bootstrap supports using transfer distance.
 
 # Help
+
+## Dependencies
+BOOSTER depends on [OpenMP](https://fr.wikipedia.org/wiki/OpenMP). 
+You should first install it before building BOOSTER.
+
+Under ubuntu for example:
+```
+apt-get install libgomp1
+```
+
+## Install BOOSTER
+
+* First download a [release](https://github.com/fredericlemoine/booster/releases) or clone the repository;
+* Then enter the directory and type `make`
+* The booster executable should be located in the current directory
+
 ## Usage
 
 ```
