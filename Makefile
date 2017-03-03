@@ -20,7 +20,7 @@ INSTALL_PATH=$$HOME/bin/
 
 all : $(ALL)
 
-%.o: %.c
+%.o: %.c %.h
 	$(CC) $(CFLAGS) -c $<
 
 # ****
