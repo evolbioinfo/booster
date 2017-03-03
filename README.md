@@ -52,3 +52,35 @@ Options:
     * empirical: Shuffles n times (`-r` option) the reference tree to compute the distribution of the random transfer distance
     * theoretical: normalize transfer distance by the depth in the tree (number of taxa in the lightest side of the bi-partition)
     * auto: select theoretical if the tree contains more than 1000 taxa
+
+## Example of workflow
+
+You have a nucleotide alignment and you want to compute booster supports with 100 bootstrap samples. The first step is to generate reference and bootstrap trees. Several ways to do it depending on the phylogenetic tool you want to use:
+
+* PhyML: PhyML already generates bootstrap trees
+```bash
+# Compute trees
+phyml -i align.phy -d nt -b 100 -m GTR -f e -t e -c 6 -a e -s BEST -o tlr 
+# Compute booster supports
+booster -i align.phy_phyml_tree.txt -b align.phy_phyml_boot_trees.txt -@ 5 -o booster.nw
+```
+* RAxML: You need to infer reference qnd bootstrap trees independently
+```bash
+# Build reference tree
+raxmlHPC -m GTRGAMMA -p $RANDOM -s align.phy -n REF
+# Build bootstrap trees
+raxmlHPC -m GTRGAMMA -p $RANDOM -b $RANDOM -# 100 -s align.phy -n BOOT
+# Compute booster support
+booster -i RAxML_bestTree.REF -b RAxML_bootstrap.BOOT -@ 5 -o booster.nw
+```
+* FastTree: You will need to generate bootstrap alignments (Phylip format), with [goalign](https://github.com/fredericlemoine/goalign) for example
+```bash
+# Build bootstrap alignments
+goalign build seqboot -i align.phy -p -n 100 -S > boot.phy
+# Build reference tree
+FastTree -nt -gtr align.phy > ref.nhx
+# Build bootstrap trees
+FastTree -nt -n 100 -gtr boot.phy > boot.nhx
+# Compute booster supports
+booster -i ref.nhx -b boot.nhx -@ 5 -o booster.nw
+```
