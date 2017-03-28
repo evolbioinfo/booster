@@ -52,7 +52,7 @@ phyml -i align.phy -d nt -b 100 -m GTR -f e -t e -c 6 -a e -s BEST -o tlr
 # Compute booster supports
 booster -i align.phy_phyml_tree.txt -b align.phy_phyml_boot_trees.txt -@ 5 -o booster.nw
 ```
-* RAxML: You need to infer reference qnd bootstrap trees independently
+* RAxML: You need to infer reference and bootstrap trees independently
 ```bash
 # Build reference tree
 raxmlHPC -m GTRGAMMA -p $RANDOM -s align.phy -n REF
