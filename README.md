@@ -76,7 +76,8 @@ booster -i RAxML_bestTree.REF -b RAxML_bootstrap.BOOT -@ 5 -o booster.nw
 * FastTree: You will need to generate bootstrap alignments (Phylip format), with [goalign](https://github.com/fredericlemoine/goalign) for example
 ```bash
 # Build bootstrap alignments
-goalign build seqboot -i align.phy -p -n 100 -S > boot.phy
+goalign build seqboot -i align.phy -p -n 100 -o boot -S
+cat boot*.ph > boot.phy
 # Build reference tree
 FastTree -nt -gtr align.phy > ref.nhx
 # Build bootstrap trees
