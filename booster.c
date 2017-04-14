@@ -2,18 +2,10 @@
 #include "tree.h"
 
 #include <string.h> /* for strcpy, strdup, etc */
-#include <libgen.h> /* for basename & dirname */
-#include <dirent.h> /* to read directories, including with the scandir function */
 #include <getopt.h>
 #include <omp.h> /* OpenMP */
 
 #include "version.h"
-
-static char* filename_prefix;		/* static global var only used to pass pseudo-argument to the following function */
-int filename_filter(const struct dirent *file_to_test) {
-  return !strncmp(file_to_test->d_name, filename_prefix, strlen(filename_prefix));
-  /* tests that filename_prefix is a prefix of the filename */
-} /* end of filename_filter, who returns 0 iff the two strings are different */
 
 void usage(FILE * out,char *name){
   fprintf(out,"Usage: ");
@@ -25,6 +17,7 @@ void usage(FILE * out,char *name){
   fprintf(out,"      -@, --num-threads: Number of threads (default 1)\n");
   fprintf(out,"      -s, --seed       : Seed (optional)\n");
   fprintf(out,"      -S, --stat-file  : Prints output statistics for each branch in the given output file\n");
+  fprintf(out,"      -a, --algo       : tbe or fbp (default tbe\n");
   fprintf(out,"      -q, --quiet      : Does not print progress messages during analysis\n");
   fprintf(out,"      -v, --version    : Prints version (optional)\n");
   fprintf(out,"      -h, --help       : Prints this help\n");
@@ -238,52 +231,33 @@ int main (int argc, char* argv[]) {
   /* Establishing the list of bootstrapped trees we are going to analyze */
   /***********************************************************************/
 
-  char *dirtemp, *preftemp; /* just so that we can free this pointer at the end */
-  char* dir_name = dirname(dirtemp = strdup(boot_trees));
-  filename_prefix = basename(preftemp = strdup(boot_trees));
-  struct dirent **matching_files;
-
-  int num_bootstrap_files = scandir(dir_name, &matching_files, filename_filter, alphasort);
-
   int init_boot_trees = 10;
   int i_tree;
+  int num_trees = 0; /* this is the number of trees really analyzed */
+
   alt_tree_strings = malloc(init_boot_trees * sizeof(char*));
+  boottree_file = fopen(boot_trees,"r");
+  if (boottree_file == NULL) {
+    fprintf(stderr,"File %s not found or impossible to access media. Aborting.\n", boot_trees);
+    Generic_Exit(__FILE__,__LINE__,__FUNCTION__,EXIT_FAILURE);
+  }
 
+  if (tell_size_of_one_tree(boot_trees) > treefilesize /* this value is still reachable */) {
+    fprintf(stderr,"error: size of one alternate tree bigger than three times the size of the ref tree! Aborting.\n");
+    Generic_Exit(__FILE__,__LINE__,__FUNCTION__,EXIT_FAILURE);
+  }
 
-  int str_offset = strlen(dir_name);
-  char tree_filename[str_offset + strlen(matching_files[0]->d_name) + 30];
-  /* allowing 2 chars for the "/" separator and for the trailing "\0", plus some room if filename sizes vary across the set */
-  strncpy(tree_filename, dir_name, str_offset);
-  strncpy(tree_filename+(str_offset++),"/", 1);
-	
-  int file_index, num_trees = 0; /* this is the number of trees really analyzed */
-	
-  for (file_index = 0; file_index < num_bootstrap_files; file_index++) {
-    strcpy(tree_filename+str_offset, matching_files[file_index]->d_name); /* includes the null termination */
-	  
-    boottree_file = fopen(tree_filename,"r");
-    if (boottree_file == NULL) {
-      fprintf(stderr,"File %s not found or impossible to access media. Aborting.\n", tree_filename);
-      Generic_Exit(__FILE__,__LINE__,__FUNCTION__,EXIT_FAILURE);
-    }
-
-    if (tell_size_of_one_tree(tree_filename) > treefilesize /* this value is still reachable */) {
-      fprintf(stderr,"error: size of one alternate tree bigger than three times the size of the ref tree! Aborting.\n");
-      Generic_Exit(__FILE__,__LINE__,__FUNCTION__,EXIT_FAILURE);
-    }
-
-    /* we copy the tree into a large string */
-    while(copy_nh_stream_into_str(boottree_file, big_string)) /* reads from the current point in the stream, retcode 1 iff no error */
-      {
-	if(num_trees >= init_boot_trees){
-	  alt_tree_strings = realloc(alt_tree_strings,init_boot_trees*2*sizeof(char*));
-	  init_boot_trees *= 2;
-	}
-	alt_tree_strings[num_trees] = strdup(big_string);
-	num_trees++;
+  /* we copy the tree into a large string */
+  while(copy_nh_stream_into_str(boottree_file, big_string)) /* reads from the current point in the stream, retcode 1 iff no error */
+    {
+      if(num_trees >= init_boot_trees){
+	alt_tree_strings = realloc(alt_tree_strings,init_boot_trees*2*sizeof(char*));
+	init_boot_trees *= 2;
       }
-    fclose(boottree_file);
-  } /* end of the loop on all the bootstrap files */
+      alt_tree_strings[num_trees] = strdup(big_string);
+      num_trees++;
+    }
+  fclose(boottree_file);
 
   if(!quiet)  fprintf(stderr,"Num trees: %d\n",num_trees);
   
@@ -294,7 +268,7 @@ int main (int argc, char* argv[]) {
 
   #pragma omp parallel for firstprivate(seed) private(min_dist,c_matrix,i_matrix,hamming,i,alt_tree) shared(max_branches_boot, ref_tree, alt_tree_strings, dist_accu_tmp, taxname_lookup_table, m) schedule(dynamic)
   for(i_tree=0; i_tree< num_trees; i_tree++){
-    if(!quiet) fprintf(stderr,"New bootstrap tree\n");
+    if(!quiet) fprintf(stderr,"New bootstrap tree : %d\n",i_tree);
     seed ^= (omp_get_thread_num() + i_tree);
     prng_seed_bytes (&seed, sizeof(seed));
     alt_tree = complete_parse_nh(alt_tree_strings[i_tree], &taxname_lookup_table);
@@ -369,12 +343,7 @@ int main (int argc, char* argv[]) {
   fclose(output_file);
   if(stat_file != NULL) fclose(stat_file);
   // FREEING STUFF
-  free(dirtemp);
-  free(preftemp);
   free(big_string);
-  /* free the stuff left behind by scandir */
-  for(i=0; i < num_bootstrap_files; i++) free(matching_files[i]); /* freeing (struct dirent*)'s */
-  free(matching_files);
 
   /* free the stuff for the calculation of the mast-like distances */
   free(dist_accu);

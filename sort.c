@@ -4,13 +4,13 @@ void sort_double(double*tab, int size){
   qsort(tab, size, sizeof(double), comp_double);
 }
 
-void sort_indexes_double(int * indexes, int size, double * values){
-  #ifdef __APPLE__
-  qsort_r(indexes, size, sizeof(int), values, comp_indexes_apple);
-  #else
-  qsort_r(indexes, size, sizeof(int), comp_indexes, values);
-  #endif
-}
+/* void sort_indexes_double(int * indexes, int size, double * values){ */
+/*   #ifdef __APPLE__ */
+/*   qsort_r(indexes, size, sizeof(int), values, comp_indexes_apple); */
+/*   #else */
+/*   qsort_r(indexes, size, sizeof(int), comp_indexes, values); */
+/*   #endif */
+/* } */
 
 int comp_double(const void * elem1, const void * elem2){
   double f = *((double*)elem1);

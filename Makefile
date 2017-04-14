@@ -2,7 +2,16 @@
 GIT_VERSION := $(shell git describe --abbrev=10 --dirty --always --tags)
 
 # Compiler: gcc
-CC = gcc
+
+ifeq ($(cross),win32)
+        CC = i686-w64-mingw32-gcc
+else
+	ifeq ($(cross),win64)
+		CC = x86_64-w64-mingw32-gcc
+	else
+		CC = gcc
+	endif
+endif
 
 # Compiler flags: all warnings + debugger meta-data
 # CFLAGS = -Wall -O3 -fopenmp
@@ -10,7 +19,7 @@ CFLAGS = -Wall -g -O3 -DVERSION=\"$(GIT_VERSION)\"
 CFLAGS_OMP = -Wall -g -fopenmp
 
 # External libraries to link to: only the mathlib for now
-LIBS = -lm -lz
+LIBS = -lm
 OBJS = hashtables_bfields.o  tree.o stats.o prng.o hashmap.o version.o sort.o io.o tree_utils.o
 
 # default target
