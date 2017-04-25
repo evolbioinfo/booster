@@ -27,7 +27,7 @@ Options:
       -b : Bootstrap prefix (e.g. boot_) or file containing several bootstrap trees
       -o : Output file (optional), default : stdout
       -@ : Number of threads (default 1)
-      -a, --algo  : bootstrap algorith, tbe or fbp (default tbe)
+      -a, --algo  : bootstrap algorithm, tbe or fbp (default tbe)
       -S : Prints output statistics for each branch in the given output file
       -q, --quiet : Does not print progress messages during analysis
       -v : Prints version (optional)
