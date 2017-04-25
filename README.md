@@ -27,7 +27,7 @@ Options:
       -b : Bootstrap prefix (e.g. boot_) or file containing several bootstrap trees
       -o : Output file (optional), default : stdout
       -@ : Number of threads (default 1)
-      -s : Seed (optional)
+      -a, --algo  : bootstrap algorith, tbe or fbp (default tbe)
       -S : Prints output statistics for each branch in the given output file
       -q, --quiet : Does not print progress messages during analysis
       -v : Prints version (optional)
@@ -50,17 +50,27 @@ You have a nucleotide alignment and you want to compute booster supports with 10
 # Compute trees
 phyml -i align.phy -d nt -b 100 -m GTR -f e -t e -c 6 -a e -s BEST -o tlr 
 # Compute booster supports
-booster -i align.phy_phyml_tree.txt -b align.phy_phyml_boot_trees.txt -@ 5 -o booster.nw
+booster -a tbe -i align.phy_phyml_tree.txt -b align.phy_phyml_boot_trees.txt -@ 5 -o booster.nw
 ```
-* RAxML: You need to infer reference and bootstrap trees independently
+
+* RAxML: FBP with RAxML
 ```bash
 # Build reference tree
 raxmlHPC -m GTRGAMMA -p $RANDOM -s align.phy -n REF
 # Build bootstrap trees
 raxmlHPC -m GTRGAMMA -p $RANDOM -b $RANDOM -# 100 -s align.phy -n BOOT
 # Compute booster support
-booster -i RAxML_bestTree.REF -b RAxML_bootstrap.BOOT -@ 5 -o booster.nw
+booster -a tbe -i RAxML_bestTree.REF -b RAxML_bootstrap.BOOT -@ 5 -o booster.nw
 ```
+
+* RAxML: Booster supports and rapid bootstrap
+```bash
+# Build reference tree + bootstrap trees
+raxmlHPC -f a -m GTRGAMMA -c 4 -s align.phy -n align -T 4 -p $RANDOM -x $RANDOM -# 100
+# Compute booster support
+booster -a tbe -i RAxML_bestTree.align -b RAxML_bootstrap.align -@ 5 -o booster.nw
+```
+
 * FastTree: You will need to generate bootstrap alignments (Phylip format), with [goalign](https://github.com/fredericlemoine/goalign) for example
 ```bash
 # Build bootstrap alignments
@@ -71,5 +81,13 @@ FastTree -nt -gtr align.phy > ref.nhx
 # Build bootstrap trees
 FastTree -nt -n 100 -gtr boot.phy > boot.nhx
 # Compute booster supports
-booster -i ref.nhx -b boot.nhx -@ 5 -o booster.nw
+booster -a tbe -i ref.nhx -b boot.nhx -@ 5 -o booster.nw
+```
+
+* IQ-TREE : Booster supports and ultrafast bootstrap
+```
+# Infer ML tree + ultrafast bootstrap trees
+iqtree-omp -wbt -s align.phy -m GTR -bb 100 -nt 5
+# Compute booster supports
+booster -a tbe -i align.phy.treefile -b align.phy.ufboot -@ 5 -o booster.nw
 ```
