@@ -7,15 +7,17 @@
 
 #include "version.h"
 
+void tbe(Tree *ref_tree, char **alt_tree_strings,char** taxname_lookup_table, FILE *stat_file, int num_trees, int quiet);
+void fbp(Tree *ref_tree, char **alt_tree_strings,char** taxname_lookup_table, int num_trees, int quiet);
+
 void usage(FILE * out,char *name){
   fprintf(out,"Usage: ");
-  fprintf(out,"%s -i <tree file> -b <bootstrap prefix or file> [-@ <cpus> -s <seed> -S <stat file> -o <output tree> -v]\n",name);
+  fprintf(out,"%s -i <tree file> -b <bootstrap prefix or file> [-@ <cpus>  -S <stat file> -o <output tree> -v]\n",name);
   fprintf(out,"Options:\n");
   fprintf(out,"      -i, --input      : Input tree file\n");
   fprintf(out,"      -b, --boot       : Bootstrap prefix (e.g. boot_) or file containing several bootstrap trees\n");
   fprintf(out,"      -o, --out        : Output file (optional), default : stdout\n");
   fprintf(out,"      -@, --num-threads: Number of threads (default 1)\n");
-  fprintf(out,"      -s, --seed       : Seed (optional)\n");
   fprintf(out,"      -S, --stat-file  : Prints output statistics for each branch in the given output file\n");
   fprintf(out,"      -a, --algo       : tbe or fbp (default tbe\n");
   fprintf(out,"      -q, --quiet      : Does not print progress messages during analysis\n");
@@ -23,7 +25,7 @@ void usage(FILE * out,char *name){
   fprintf(out,"      -h, --help       : Prints this help\n");
 }
 
-void printOptions(FILE * out,char* input_tree,char * boot_trees, char * output_tree, char *output_stat, long seed, int nb_threads, int quiet){
+void printOptions(FILE * out,char* input_tree,char * boot_trees, char * output_tree, char *output_stat, char *algo, int nb_threads, int quiet){
   fprintf(out,"**************************\n");
   fprintf(out,"*         Options        *\n");
   fprintf(out,"**************************\n");
@@ -38,7 +40,7 @@ void printOptions(FILE * out,char* input_tree,char * boot_trees, char * output_t
     fprintf(out,"Stat file       : None\n");
   else
     fprintf(out,"Stat file       : %s\n",output_stat);
-  fprintf(out,"Seed            : %ld\n", seed);
+  fprintf(out,"Algo            : %s\n", algo);
   fprintf(out,"Threads         : %d\n", nb_threads);
   if(quiet)
     fprintf(out,"Quiet           : true\n");
@@ -84,10 +86,6 @@ int main (int argc, char* argv[]) {
   int i, retcode;
   /* int one_side; /\* to store a number of taxa seen on one side of a branch in the ref tree *\/ */
 
-  /* force the buffering on stdout to a line buffering, for qsub not to annoy us and buffer it excessively */
-  // setvbuf(stdout, NULL, _IOLBF, BUFSIZ);
-  long seed = -1;
-
   FILE *output_file = NULL;
   FILE *intree_file = NULL;
   FILE *boottree_file = NULL;
@@ -100,8 +98,9 @@ int main (int argc, char* argv[]) {
 
   Tree *ref_tree;
   char **alt_tree_strings;
-  Tree *alt_tree;
 
+  char *algo = "tbe";
+  
   int quiet = 0;
   
   int num_threads = 1;
@@ -110,8 +109,8 @@ int main (int argc, char* argv[]) {
     {"input", required_argument, 0, 'i'},
     {"boot" , required_argument, 0, 'b'},
     {"out"  , required_argument, 0, 'o'},
-    {"seed" , required_argument, 0, 's'},
-    {"stat-file"  , required_argument, 0, 'S'},
+    {"stat-file" , required_argument, 0, 'S'},
+    {"algo" , required_argument, 0, 'a'},
     {"num-threads", required_argument, 0,'@'},
     {"help" , no_argument      , 0, 'h'},
     {"version", no_argument      , 0, 'v'},
@@ -128,7 +127,7 @@ int main (int argc, char* argv[]) {
     case 'b': boot_trees = optarg; break;
     case 'o': out_tree = optarg; break;
     case '@': num_threads=strtol(optarg,NULL,10); break; 
-    case 's': seed = strtol(optarg,NULL,10); break;
+    case 'a': algo = optarg; break;
     case 'S': stat_out = optarg; break;
     case 'q': quiet = 1; break;
     case 'h': usage(stdout,argv[0]); return EXIT_SUCCESS; break; 
@@ -138,12 +137,11 @@ int main (int argc, char* argv[]) {
     }
   }
 
-  if(seed!=-1){
-    prng_seed_bytes (&seed, sizeof(seed));
-  }else{
-    seed = prng_seed_time();
+  if(strcmp(algo,"tbe") && strcmp(algo,"fbp")){
+    fprintf(stderr,"Algo option must be one of \"tbe\" or \"fbp\"\n");
+    Generic_Exit(__FILE__,__LINE__,__FUNCTION__,EXIT_FAILURE);
   }
-
+  
   if (argc < optind || input_tree == NULL || boot_trees == NULL){
     fprintf(stderr,"An option is missing\n");
     usage(stderr,argv[0]);
@@ -177,7 +175,7 @@ int main (int argc, char* argv[]) {
     }
   }
 
-  if(!quiet) printOptions(stderr, input_tree, boot_trees, out_tree, stat_out, seed, num_threads, quiet);
+  if(!quiet) printOptions(stderr, input_tree, boot_trees, out_tree, stat_out, algo, num_threads, quiet);
 
   intree_file = fopen(input_tree,"r");
   if (intree_file == NULL) {
@@ -204,33 +202,9 @@ int main (int argc, char* argv[]) {
   char** taxname_lookup_table = NULL;
   ref_tree  = complete_parse_nh(big_string, &taxname_lookup_table); /* sets taxname_lookup_table en passant */
 
-  /*****************************************************************************/
-  /* Preparing the bootstrap: arrays of counts and Hamming distances.          */
-  /*****************************************************************************/
-
-  /** Max number of branches we can see in the bootstrap tree:
-      If it has no multifurcation : binary tree--> ntax*2-2 (if rooted...)
-  */
-  int max_branches_boot = ref_tree->nb_taxa*2-2;
-
-  int n = ref_tree->nb_taxa;
-  int m = ref_tree->nb_edges;
-
-
-  short unsigned** c_matrix;
-  short unsigned** i_matrix;
-  short unsigned** hamming;
-  short unsigned* min_dist;
-
-  int *dist_accu      = (int*) calloc(m,sizeof(int)); /* array of distance sums, one per branch. Initialized to 0. */
-  int **dist_accu_tmp;
-
-  /* initializations of the above: see inside loop */
-
   /***********************************************************************/
   /* Establishing the list of bootstrapped trees we are going to analyze */
   /***********************************************************************/
-
   int init_boot_trees = 10;
   int i_tree;
   int num_trees = 0; /* this is the number of trees really analyzed */
@@ -260,17 +234,115 @@ int main (int argc, char* argv[]) {
   fclose(boottree_file);
 
   if(!quiet)  fprintf(stderr,"Num trees: %d\n",num_trees);
+
+  if(!strcmp(algo,"tbe")){
+    tbe(ref_tree, alt_tree_strings, taxname_lookup_table, stat_file, num_trees, quiet);
+  }else{
+    fbp(ref_tree, alt_tree_strings, taxname_lookup_table, num_trees, quiet);
+  }
+  write_nh_tree(ref_tree, output_file);
+
+  fclose(output_file);
+  if(stat_file != NULL) fclose(stat_file);
+  // FREEING STUFF
+  free(big_string);
+
+  /* free the stuff for the calculation of the mast-like distances */
+  for(i_tree=0; i_tree < num_trees;i_tree++){
+    free(alt_tree_strings[i_tree]);
+  }
+  free(alt_tree_strings);
+
+  /* we also have to free the taxname lookup table */
+  for(i=0; i < ref_tree->nb_taxa; i++) free(taxname_lookup_table[i]); /* freeing (char*)'s */
+  free(taxname_lookup_table); /* which is a (char**) */
+  free_tree(ref_tree);
+  return 0;
+}
+
+
+void fbp(Tree *ref_tree, char **alt_tree_strings,char** taxname_lookup_table, int num_trees, int quiet){
+  int i,j;
+  Tree *alt_tree;
+  int i_tree;
+  short unsigned* nb_found = malloc(ref_tree->nb_edges * sizeof(short unsigned));
+  double support;
+
+  for(i=0; i< ref_tree->nb_edges; i++){
+    nb_found[i] = 0;
+  }
+  
+  
+#pragma omp parallel for private(i, j, alt_tree, support) shared(nb_found,ref_tree, alt_tree_strings, taxname_lookup_table, quiet, num_trees) schedule(dynamic)
+  for(i_tree=0; i_tree< num_trees; i_tree++){
+    if(!quiet) fprintf(stderr,"New bootstrap tree : %d\n",i_tree);
+    alt_tree = complete_parse_nh(alt_tree_strings[i_tree], &taxname_lookup_table);
+    
+    if (alt_tree == NULL) {
+      fprintf(stderr,"Not a correct NH tree (%d). Skipping.\n%s\n",i_tree,alt_tree_strings[i_tree]);
+      continue; /* some files maybe not containing trees */
+    }
+    if (alt_tree->nb_taxa != ref_tree->nb_taxa) {
+      fprintf(stderr,"This tree doesn't have the same number of taxa as the reference tree. Skipping.\n");
+      continue; /* some files maybe not containing trees */
+    }
+
+    /****************************************************/
+    /*     comparison of the bipartitions, FBP method   */
+    /****************************************************/		  
+    /* output, just to see */
+    for (i = 0; i < ref_tree->nb_edges; i++) {
+      for (j = 0; j <  alt_tree->nb_edges; j++) {
+	if (equal_or_complement_id_hashtables(ref_tree->a_edges[i]->hashtbl[1],
+					      alt_tree->a_edges[j]->hashtbl[1],
+					      ref_tree->nb_taxa)) {
+	  nb_found[i]++;
+	  break;
+	}
+      }
+    }
+    free_tree(alt_tree);
+  }
+
+  #pragma omp barrier
+
+  if(num_trees != 0) {
+    for (i = 0; i <  ref_tree->nb_edges; i++) {
+      if(ref_tree->a_edges[i]->right->nneigh == 1) { continue; }
+      /* the bootstrap value for a branch is inscribed as the name of its descendant (always right side of the edge, by convention) */
+      if(ref_tree->a_edges[i]->right->name) free(ref_tree->a_edges[i]->right->name); /* clear name if existing */
+      ref_tree->a_edges[i]->right->name = (char*) malloc(16 * sizeof(char));
+      support   = (double) nb_found[i] * 1.0 / num_trees;
+      sprintf(ref_tree->a_edges[i]->right->name, "%.6f", support);
+      ref_tree->a_edges[i]->branch_support = support;
+    }
+  }
+}
+
+void tbe(Tree *ref_tree, char **alt_tree_strings,char** taxname_lookup_table, FILE *stat_file, int num_trees, int quiet){
+  short unsigned** c_matrix;
+  short unsigned** i_matrix;
+  short unsigned** hamming;
+  short unsigned* min_dist;
+  int i;
+  int m = ref_tree->nb_edges;
+  int n = ref_tree->nb_taxa;
+  Tree *alt_tree;
+  int i_tree;
+  int *dist_accu      = (int*) calloc(m,sizeof(int)); /* array of distance sums, one per branch. Initialized to 0. */
+  int **dist_accu_tmp;
+
+  /** Max number of branches we can see in the bootstrap tree: If it has no multifurcation : binary tree--> ntax*2-2 (if rooted...) */
+  int max_branches_boot = ref_tree->nb_taxa*2-2;
   
   dist_accu_tmp      = (int**) calloc(num_trees,sizeof(int*)); /* array of distance sums, one per boot tree and branch. Initialized to 0. */
   for(i_tree=0; i_tree< num_trees; i_tree++){
     dist_accu_tmp[i_tree]  = (int*) calloc(m,sizeof(int)); /* array of distance sums, one per branch. Initialized to 0. */
   }
 
-  #pragma omp parallel for firstprivate(seed) private(min_dist,c_matrix,i_matrix,hamming,i,alt_tree) shared(max_branches_boot, ref_tree, alt_tree_strings, dist_accu_tmp, taxname_lookup_table, m) schedule(dynamic)
+  #pragma omp parallel for private(min_dist,c_matrix,i_matrix,hamming,i, alt_tree) shared(max_branches_boot, ref_tree, alt_tree_strings, dist_accu_tmp, taxname_lookup_table, m) schedule(dynamic)
   for(i_tree=0; i_tree< num_trees; i_tree++){
     if(!quiet) fprintf(stderr,"New bootstrap tree : %d\n",i_tree);
-    seed ^= (omp_get_thread_num() + i_tree);
-    prng_seed_bytes (&seed, sizeof(seed));
     alt_tree = complete_parse_nh(alt_tree_strings[i_tree], &taxname_lookup_table);
     
     if (alt_tree == NULL) {
@@ -302,7 +374,6 @@ int main (int argc, char* argv[]) {
   }
 
   #pragma omp barrier
-
 
   for (i = 0; i < m; i++){
     for(i_tree=0; i_tree < num_trees; i_tree++){
@@ -336,27 +407,11 @@ int main (int argc, char* argv[]) {
 
       ref_tree->a_edges[i]->branch_support = bootstrap_val;
     }
-
-    write_nh_tree(ref_tree, output_file);
   }
 
-  fclose(output_file);
-  if(stat_file != NULL) fclose(stat_file);
-  // FREEING STUFF
-  free(big_string);
-
-  /* free the stuff for the calculation of the mast-like distances */
   free(dist_accu);
   for(i_tree=0; i_tree < num_trees;i_tree++){
     free(dist_accu_tmp[i_tree]);
-    free(alt_tree_strings[i_tree]);
   }
-  free(alt_tree_strings);
   free(dist_accu_tmp);
-
-  /* we also have to free the taxname lookup table */
-  for(i=0; i < ref_tree->nb_taxa; i++) free(taxname_lookup_table[i]); /* freeing (char*)'s */
-  free(taxname_lookup_table); /* which is a (char**) */
-  free_tree(ref_tree);
-  return 0;
 }
