@@ -24,7 +24,7 @@ apt-get install libgomp1
 Usage: booster -i <tree file> -b <bootstrap prefix or file> [-r <# rand shufling> -n <normalization> -@ <cpus> -s <seed> -S <stat file> -o <output tree> -v]
 Options:
       -i : Input tree file
-      -b : Bootstrap prefix (e.g. boot_) or file containing several bootstrap trees
+      -b : Bootstrap tree file (1 file containing all bootstrap trees)
       -o : Output file (optional), default : stdout
       -@ : Number of threads (default 1)
       -a, --algo  : bootstrap algorithm, tbe or fbp (default tbe)
@@ -38,7 +38,7 @@ Options:
 * `-i`: Reference tree file : a reference tree in newick format
 * `-b`: Bootstrap tree file : a set of bootstrap trees in newick format
 * `-@`: Number of threads
-* `-s`: Initial random seed
+* `-a`: Bootstrap algorithm: `tbe` (Transfer bootstrap) or `fbp` (Felsenstein bootstrap)
 * `-S`: Output statistic file
 
 ## Example of workflow

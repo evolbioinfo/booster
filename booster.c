@@ -15,7 +15,7 @@ void usage(FILE * out,char *name){
   fprintf(out,"%s -i <tree file> -b <bootstrap prefix or file> [-@ <cpus>  -S <stat file> -o <output tree> -v]\n",name);
   fprintf(out,"Options:\n");
   fprintf(out,"      -i, --input      : Input tree file\n");
-  fprintf(out,"      -b, --boot       : Bootstrap prefix (e.g. boot_) or file containing several bootstrap trees\n");
+  fprintf(out,"      -b, --boot       : Bootstrap tree file (1 file containing all bootstrap trees)\n");
   fprintf(out,"      -o, --out        : Output file (optional), default : stdout\n");
   fprintf(out,"      -@, --num-threads: Number of threads (default 1)\n");
   fprintf(out,"      -S, --stat-file  : Prints output statistics for each branch in the given output file\n");
