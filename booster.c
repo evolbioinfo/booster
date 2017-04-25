@@ -121,7 +121,7 @@ int main (int argc, char* argv[]) {
   opterr = 0;
   int option_index = 0;
   int c = 0;
-  while ((c = getopt_long(argc, argv, "i:b:o:s:@:S:n:r:hvq", long_options, &option_index)) != -1){
+  while ((c = getopt_long(argc, argv, "i:a:b:o:s:@:S:n:r:hvq", long_options, &option_index)) != -1){
     switch (c){
     case 'i': input_tree = optarg; break;
     case 'b': boot_trees = optarg; break;
