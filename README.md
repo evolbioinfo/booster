@@ -75,11 +75,10 @@ booster -a tbe -i RAxML_bestTree.align -b RAxML_bootstrap.align -@ 5 -o booster.
 ```bash
 # Build bootstrap alignments
 goalign build seqboot -i align.phy -p -n 100 -o boot -S
-cat boot*.ph > boot.phy
 # Build reference tree
 FastTree -nt -gtr align.phy > ref.nhx
 # Build bootstrap trees
-FastTree -nt -n 100 -gtr boot.phy > boot.nhx
+cat boot*.ph | FastTree -nt -n 100 -gtr > boot.nhx
 # Compute booster supports
 booster -a tbe -i ref.nhx -b boot.nhx -@ 5 -o booster.nw
 ```
