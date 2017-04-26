@@ -1,8 +1,9 @@
-# Version of bstools
+# Version of booster
 GIT_VERSION := $(shell git describe --abbrev=10 --dirty --always --tags)
 
-# Compiler: gcc
+UNAME := $(shell uname)
 
+# Compiler: gcc
 ifeq ($(cross),win32)
         CC = i686-w64-mingw32-gcc
 else
@@ -13,12 +14,15 @@ else
 	endif
 endif
 
-# Compiler flags: all warnings + debugger meta-data
-# CFLAGS = -Wall -O3 -fopenmp
 CFLAGS = -Wall -g -O3 -DVERSION=\"$(GIT_VERSION)\"
 CFLAGS_OMP = -Wall -g -fopenmp
 
-# External libraries to link to: only the mathlib for now
+ifeq ($(UNAME),Darwin)
+	CFLAGS_OMP += -static-libgcc
+else
+	CFLAGS_OMP += -static
+endif
+
 LIBS = -lm
 OBJS = hashtables_bfields.o  tree.o stats.o prng.o hashmap.o version.o sort.o io.o tree_utils.o bitset_index.o
 
@@ -36,7 +40,7 @@ all : $(ALL)
 # the "booster" supports. Needs ref tree and bt trees.
 # ****
 booster: $(OBJS) booster.c
-	$(CC) -static $(CFLAGS_OMP) -o $@ $^ $(LIBS)
+	$(CC) $(CFLAGS_OMP) -o $@ $^ $(LIBS)
 
 
 # ****
