@@ -265,13 +265,13 @@ int main (int argc, char* argv[]) {
 void fbp(Tree *ref_tree, char **alt_tree_strings,char** taxname_lookup_table, int num_trees, int quiet){
   int j;
   Tree *alt_tree;
-  int i_tree;
+  int i_tree,i;
   short unsigned* nb_found = malloc(ref_tree->nb_edges * sizeof(short unsigned));
   double support;
   // We initialize the reference edge hashmap
   bitset_hashmap *hm = new_bitset_hashmap(ref_tree->nb_edges*2, 0.75);
 
-  for(int i=0; i< ref_tree->nb_edges; i++){
+  for(i=0; i< ref_tree->nb_edges; i++){
     nb_found[i] = 0;
     bitset_hashmap_putvalue(hm,ref_tree->a_edges[i]->hashtbl[1],ref_tree->nb_taxa,i);
   }
@@ -306,9 +306,9 @@ void fbp(Tree *ref_tree, char **alt_tree_strings,char** taxname_lookup_table, in
   }
 
   #pragma omp barrier
-  
+
   if(num_trees != 0) {
-    for (int i = 0; i <  ref_tree->nb_edges; i++) {
+    for (i = 0; i <  ref_tree->nb_edges; i++) {
       if(ref_tree->a_edges[i]->right->nneigh == 1) { continue; }
       /* the bootstrap value for a branch is inscribed as the name of its descendant (always right side of the edge, by convention) */
       if(ref_tree->a_edges[i]->right->name) free(ref_tree->a_edges[i]->right->name); /* clear name if existing */

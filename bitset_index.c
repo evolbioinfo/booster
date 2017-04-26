@@ -1,12 +1,13 @@
 #include "bitset_index.h"
 
 bitset_hashmap* new_bitset_hashmap(int size, float loadfactor) {
+  int i;
   bitset_hashmap* bh = malloc(sizeof(bitset_hashmap));
   bh->capacity = size;
   bh->loadfactor = loadfactor;
   bh->total = 0;
   bh->map_array = malloc(size*sizeof(bitset_bucket));
-  for(int i=0;i<size;i++){
+  for(i=0;i<size;i++){
     bh->map_array[i]=NULL;
   }
   return bh;
@@ -18,7 +19,8 @@ void free_bitset_hashmap(bitset_hashmap *hm){
 }
 
 void bitset_hash_map_free_map_array(bitset_bucket **map_array, int total){
-  for(int i=0;i<total;i++){
+  int i;
+  for(i=0;i<total;i++){
     if(map_array[i]!=NULL){
       bitset_hash_map_free_buckets(map_array[i]->values, map_array[i]->size);
       free(map_array[i]);
@@ -28,7 +30,8 @@ void bitset_hash_map_free_map_array(bitset_bucket **map_array, int total){
 }
 
 void bitset_hash_map_free_buckets(bitset_keyvalue ** values, int total){
-  for(int i=0;i<total;i++){
+  int i;
+  for(i=0;i<total;i++){
     free(values[i]);
   }
   free(values);
@@ -44,9 +47,9 @@ int bitset_hashmap_indexfor(int hashcode, int capacity) {
 // If the edge is present, returns the value
 int bitset_hashmap_value(bitset_hashmap *hm, id_hash_table_t *bitset, int nb_taxa) {
   int index = bitset_hashmap_indexfor(bitset_hashcode(bitset,nb_taxa), hm->capacity);
-  
+  int k;
   if(hm->map_array[index] != NULL){
-      for (int k=0;k<hm->map_array[index]->size;k++){
+      for (k=0;k<hm->map_array[index]->size;k++){
 	if(bitset_hashEquals(hm->map_array[index]->values[k]->key,bitset,nb_taxa)) {
 	  return hm->map_array[index]->values[k]->value;
 	}
@@ -57,6 +60,7 @@ int bitset_hashmap_value(bitset_hashmap *hm, id_hash_table_t *bitset, int nb_tax
 
 void bitset_hashmap_putvalue(bitset_hashmap *hm, id_hash_table_t *bitset, int nb_taxa, int value) {
   int index = bitset_hashmap_indexfor(bitset_hashcode(bitset,nb_taxa), hm->capacity);
+  int k;
   if(hm->map_array[index] == NULL) {
     hm->map_array[index] = malloc(sizeof(bitset_bucket));
     hm->map_array[index]->size=1;
@@ -67,7 +71,7 @@ void bitset_hashmap_putvalue(bitset_hashmap *hm, id_hash_table_t *bitset, int nb
     hm->map_array[index]->values[0]->value = value;
     hm->total++;
   } else {
-    for (int k=0;k<hm->map_array[index]->size;k++){
+    for (k=0;k<hm->map_array[index]->size;k++){
       if(bitset_hashEquals(hm->map_array[index]->values[k]->key,bitset,nb_taxa)) {
 	hm->map_array[index]->values[k]->value = value;
 	return;
@@ -129,14 +133,15 @@ void bitset_hashmap_rehash(bitset_hashmap *hm, int nb_taxa) {
   // We rehash everything with a new capacity
   if (((float)hm->total) >= ((float)hm->capacity) * hm->loadfactor) {
     int newcapacity = hm->capacity * 2;
+    int i,l,k;
     bitset_bucket **new_map_array = malloc(newcapacity*sizeof(bitset_bucket*));
-    for(int i=0;i<newcapacity;i++){
+    for(i=0;i<newcapacity;i++){
       new_map_array[i]=NULL;
     }
 
-    for(int k=0;k<hm->capacity;k++){
+    for(k=0;k<hm->capacity;k++){
       if (hm->map_array[k] != NULL) {
-	for(int l=0;l<hm->map_array[k]->size;l++){
+	for(l=0;l<hm->map_array[k]->size;l++){
 	  int index = bitset_hashmap_indexfor(bitset_hashcode(hm->map_array[k]->values[l]->key,nb_taxa), newcapacity);
 	  if (new_map_array[index] == NULL) {
 	      new_map_array[index] = malloc(sizeof(bitset_bucket));
