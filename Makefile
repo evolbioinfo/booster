@@ -20,7 +20,7 @@ CFLAGS_OMP = -Wall -g -fopenmp
 
 # External libraries to link to: only the mathlib for now
 LIBS = -lm
-OBJS = hashtables_bfields.o  tree.o stats.o prng.o hashmap.o version.o sort.o io.o tree_utils.o
+OBJS = hashtables_bfields.o  tree.o stats.o prng.o hashmap.o version.o sort.o io.o tree_utils.o bitset_index.o
 
 # default target
 ALL = booster
@@ -36,7 +36,7 @@ all : $(ALL)
 # the "booster" supports. Needs ref tree and bt trees.
 # ****
 booster: $(OBJS) booster.c
-	$(CC) $(CFLAGS_OMP) -o $@ $^ $(LIBS)
+	$(CC) -static $(CFLAGS_OMP) -o $@ $^ $(LIBS)
 
 
 # ****
