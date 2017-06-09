@@ -22,11 +22,11 @@ else
 	endif
 endif
 
-# ifeq ($(UNAME),Darwin)
-# 	CFLAGS_OMP += -static-libgcc
-# else
-# 	CFLAGS_OMP += -static
-#endif
+ifeq ($(UNAME),Darwin)
+	CFLAGS_OMP += -static-libgcc
+#else
+#	CFLAGS_OMP += -static
+endif
 
 LIBS = -lm
 OBJS = hashtables_bfields.o  tree.o stats.o prng.o hashmap.o version.o sort.o io.o tree_utils.o bitset_index.o
