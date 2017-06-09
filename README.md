@@ -1,15 +1,21 @@
 # BOOSTER : BOOtstrap Support by TransfER
-This tool is dedicated to compute bootstrap supports using transfer distance.
+BOOSTER is a new way of computing bootstrap supports in large phylogenies.
+
+See http://booster.c3bi.pasteur.fr/help for more informations.
 
 # Help
 
 ## Dependencies
-BOOSTER depends on [OpenMP](https://fr.wikipedia.org/wiki/OpenMP). 
-You should first install it before building BOOSTER.
+BOOSTER depends on [OpenMP](https://fr.wikipedia.org/wiki/OpenMP), which should be installed first before building BOOSTER.
 
-Under ubuntu for example:
+For example:
+- On Ubuntu / Debian:
 ```
-apt-get install libgomp1
+sudo apt-get install libgomp1
+```
+- On CentOS / RedHat:
+```
+sudo yum install libgomp
 ```
 
 ## Install BOOSTER
@@ -21,7 +27,7 @@ apt-get install libgomp1
 ## Usage
 
 ```
-Usage: booster -i <tree file> -b <bootstrap prefix or file> [-r <# rand shufling> -n <normalization> -@ <cpus> -s <seed> -S <stat file> -o <output tree> -v]
+Usage: ./booster_macos64 -i <tree file> -b <bootstrap prefix or file> [-@ <cpus>  -S <stat file> -o <output tree> -v]
 Options:
       -i : Input tree file
       -b : Bootstrap tree file (1 file containing all bootstrap trees)
