@@ -1,11 +1,12 @@
 # BOOSTER : BOOtstrap Support by TransfER
 BOOSTER is a new way of computing bootstrap supports in large phylogenies.
 
+See http://booster.c3bi.pasteur.fr/help for more informations.
+
 # Help
 
 ## Dependencies
-BOOSTER depends on [OpenMP](https://fr.wikipedia.org/wiki/OpenMP). 
-You should first install it before building BOOSTER.
+BOOSTER depends on [OpenMP](https://fr.wikipedia.org/wiki/OpenMP), which should be installed first before building BOOSTER.
 
 For example:
 - On Ubuntu / Debian:
