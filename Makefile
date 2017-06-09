@@ -3,6 +3,9 @@ GIT_VERSION := $(shell git describe --abbrev=10 --dirty --always --tags)
 
 UNAME := $(shell uname)
 
+CFLAGS = -Wall -g -O3 -DVERSION=\"$(GIT_VERSION)\"
+CFLAGS_OMP = -Wall -g -fopenmp
+
 # Compiler: gcc
 ifeq ($(cross),win32)
         CC = i686-w64-mingw32-gcc
@@ -10,18 +13,20 @@ else
 	ifeq ($(cross),win64)
 		CC = x86_64-w64-mingw32-gcc
 	else
-		CC = gcc
+		ifeq ($(cross),linux32)
+			CFLAGS_OMP += -m32
+			CFLAGS += -m32
+		else
+			CC = gcc
+		endif
 	endif
 endif
 
-CFLAGS = -Wall -g -O3 -DVERSION=\"$(GIT_VERSION)\"
-CFLAGS_OMP = -Wall -g -fopenmp
-
-ifeq ($(UNAME),Darwin)
-	CFLAGS_OMP += -static-libgcc
-else
-	CFLAGS_OMP += -static
-endif
+# ifeq ($(UNAME),Darwin)
+# 	CFLAGS_OMP += -static-libgcc
+# else
+# 	CFLAGS_OMP += -static
+#endif
 
 LIBS = -lm
 OBJS = hashtables_bfields.o  tree.o stats.o prng.o hashmap.o version.o sort.o io.o tree_utils.o bitset_index.o
