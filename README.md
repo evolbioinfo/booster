@@ -21,7 +21,7 @@ apt-get install libgomp1
 ## Usage
 
 ```
-Usage: booster -i <tree file> -b <bootstrap prefix or file> [-r <# rand shufling> -n <normalization> -@ <cpus> -s <seed> -S <stat file> -o <output tree> -v]
+Usage: ./booster_macos64 -i <tree file> -b <bootstrap prefix or file> [-@ <cpus>  -S <stat file> -o <output tree> -v]
 Options:
       -i : Input tree file
       -b : Bootstrap tree file (1 file containing all bootstrap trees)
