@@ -1,5 +1,5 @@
 # BOOSTER : BOOtstrap Support by TransfER
-This tool is dedicated to compute bootstrap supports using transfer distance.
+BOOSTER is a new way of computing bootstrap supports in large phylogenies.
 
 # Help
 
@@ -7,9 +7,14 @@ This tool is dedicated to compute bootstrap supports using transfer distance.
 BOOSTER depends on [OpenMP](https://fr.wikipedia.org/wiki/OpenMP). 
 You should first install it before building BOOSTER.
 
-Under ubuntu for example:
+For example:
+- On Ubuntu / Debian:
 ```
-apt-get install libgomp1
+sudo apt-get install libgomp1
+```
+- On CentOS / RedHat:
+```
+sudo yum install libgomp
 ```
 
 ## Install BOOSTER
