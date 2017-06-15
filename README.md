@@ -44,7 +44,7 @@ Options:
 * `-i`: Reference tree file : a reference tree in newick format
 * `-b`: Bootstrap tree file : a set of bootstrap trees in newick format
 * `-@`: Number of threads
-* `-a`: Bootstrap algorithm: `tbe` (Transfer bootstrap) or `fbp` (Felsenstein bootstrap)
+* `-a`: Bootstrap algorithm: `tbe` (Transfer Bootstrap Expectation) or `fbp` (Felsenstein Bootstrap Proportion)
 * `-S`: Output statistic file
 
 ## Example of workflow
