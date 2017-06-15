@@ -236,8 +236,8 @@ void update_hashtables_pre_alltree(Tree* tree);
 void update_i_c_post_order_ref_tree(Tree* ref_tree, Node* orig, Node* target, Tree* boot_tree, short unsigned** i_matrix, short unsigned** c_matrix);
 void update_all_i_c_post_order_ref_tree(Tree* ref_tree, Tree* boot_tree, short unsigned** i_matrix, short unsigned** c_matrix);
 
-void update_i_c_post_order_boot_tree(Tree* ref_tree, Tree* boot_tree, Node* orig, Node* target, short unsigned** i_matrix, short unsigned** c_matrix, short unsigned** hamming, short unsigned* min_dist);
-void update_all_i_c_post_order_boot_tree(Tree* ref_tree, Tree* boot_tree, short unsigned** i_matrix, short unsigned** c_matrix, short unsigned** hamming, short unsigned* min_dist);
+void update_i_c_post_order_boot_tree(Tree* ref_tree, Tree* boot_tree, Node* orig, Node* target, short unsigned** i_matrix, short unsigned** c_matrix, short unsigned** hamming, short unsigned* min_dist, short unsigned* min_dist_edge);
+void update_all_i_c_post_order_boot_tree(Tree* ref_tree, Tree* boot_tree, short unsigned** i_matrix, short unsigned** c_matrix, short unsigned** hamming, short unsigned* min_dist, short unsigned* min_dist_edge);
 
 
 /*Generate Random Tree*/

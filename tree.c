@@ -1794,7 +1794,7 @@ void update_all_i_c_post_order_ref_tree(Tree* ref_tree, Tree* boot_tree, short u
 
 
 void update_i_c_post_order_boot_tree(Tree* ref_tree, Tree* boot_tree, Node* orig, Node* target, short unsigned** i_matrix, short unsigned** c_matrix,
-		short unsigned** hamming, short unsigned* min_dist) {
+				     short unsigned** hamming, short unsigned* min_dist, short unsigned* min_dist_edge) {
 	/* here we implement the second part of the Brehelin/Gascuel/Martin algorithm:
 	   post-order traversal of the bootstrap tree, and numerical recurrence. */
 	/* in this function, orig and target are nodes of boot_tree (aka T_boot). */
@@ -1823,7 +1823,7 @@ void update_i_c_post_order_boot_tree(Tree* ref_tree, Tree* boot_tree, Node* orig
 			dir = (target_to_orig + j) % target->nneigh;
 			edge_id2 = target->br[dir]->id;
 			update_i_c_post_order_boot_tree(ref_tree, boot_tree, target, target->neigh[dir],
-			       							i_matrix, c_matrix, hamming, min_dist);
+							i_matrix, c_matrix, hamming, min_dist, min_dist_edge);
 			for (i=0; i < ref_tree->nb_edges; i++) { /* for all the edges of ref_tree */ 
 				i_matrix[i][edge_id] += i_matrix[i][edge_id2];
 				c_matrix[i][edge_id] += c_matrix[i][edge_id2];
@@ -1844,8 +1844,10 @@ void update_i_c_post_order_boot_tree(Tree* ref_tree, Tree* boot_tree, Node* orig
 		
 
 		/*   and update the min of all Hamming (TRANSFER) distances hamming[i][j] over all j */
-		if (hamming[i][edge_id] < min_dist[i])
+		if (hamming[i][edge_id] < min_dist[i]){
 			min_dist[i] = hamming[i][edge_id];
+			min_dist_edge[i] = edge_id;
+		}
 			
 	} /* end for on all edges of T_ref */
 	
@@ -1853,11 +1855,11 @@ void update_i_c_post_order_boot_tree(Tree* ref_tree, Tree* boot_tree, Node* orig
 
 
 void update_all_i_c_post_order_boot_tree(Tree* ref_tree, Tree* boot_tree, short unsigned** i_matrix, short unsigned** c_matrix,
-		short unsigned** hamming, short unsigned* min_dist) {
+					 short unsigned** hamming, short unsigned* min_dist, short unsigned* min_dist_edge) {
 	/* this function is the second step of the union and intersection calculations */
 	Node* root = boot_tree->node0;
 	int i, n = root->nneigh;
-	for(i=0 ; i<n ; i++) update_i_c_post_order_boot_tree(ref_tree, boot_tree, root, root->neigh[i], i_matrix, c_matrix, hamming, min_dist);
+	for(i=0 ; i<n ; i++) update_i_c_post_order_boot_tree(ref_tree, boot_tree, root, root->neigh[i], i_matrix, c_matrix, hamming, min_dist, min_dist_edge);
 
 	/* and then some checks to make sure everything went ok */
 	for(i=0; i<ref_tree->nb_edges; i++) {
