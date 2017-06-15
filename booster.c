@@ -93,10 +93,6 @@ int* species_to_move(Edge* re, Edge* be, int dist, int nb_taxa) {
   int *diff = calloc(maxnb,sizeof(int));
   int *equ  = calloc(maxnb,sizeof(int));
   int nbdiff=0, nbequ=0;
-  /* fprintf(stderr,"%d=\t",re->id); */
-  /* print_id_hashtable(stderr,re->hashtbl[1],nb_taxa); */
-  /* fprintf(stderr,"%d=\t",be->id); */
-  /* print_id_hashtable(stderr,be->hashtbl[1],nb_taxa); */
 
   for(i = 0; i < nb_taxa; i++) {
     if(lookup_id(re->hashtbl[1],i) != lookup_id(be->hashtbl[1],i)){
@@ -107,16 +103,6 @@ int* species_to_move(Edge* re, Edge* be, int dist, int nb_taxa) {
       nbequ++;
     }
   }
-  /* fprintf(stderr,"Diff:  "); */
-  /* for(i=0;i<nbdiff;i++){ */
-  /*   fprintf(stderr,",%d",diff[i]); */
-  /* } */
-  /* fprintf(stderr,"\n"); */
-  /* fprintf(stderr,"Equ:  "); */
-  /* for(i=0;i<nbequ;i++){ */
-  /*   fprintf(stderr,",%d",equ[i]); */
-  /* } */
-  /* fprintf(stderr,"\n"); */
   if(nbdiff < nbequ){
     if(nbdiff != dist){
       fprintf(stderr,"Length of moved species array (%d) is not equal to the minimum distance found (%d)\n", nbdiff, dist);
@@ -443,14 +429,8 @@ void tbe(Tree *ref_tree, char **alt_tree_strings,char** taxname_lookup_table, FI
       double norm  = ((double)min_dist[i]) * 1.0 / (((double)re->topo_depth) - 1.0);
       int mindepth = (int)(ceil(1.0/dist_cutoff + 1.0));
       if (norm <= dist_cutoff && re->topo_depth >= mindepth ){
-	/* fprintf(stderr,"%d=\t",re->id); */
-	/* print_id_hashtable(stderr,re->hashtbl[1],ref_tree->nb_taxa); */
-	/* fprintf(stderr,"%d=\t",be->id); */
-	/* print_id_hashtable(stderr,be->hashtbl[1],ref_tree->nb_taxa); */
-
 	int* sm = species_to_move(re, be, min_dist[i], ref_tree->nb_taxa);
 	for (j=0;j<min_dist[i];j++){
-	  //fprintf(stderr,"%d\n",sm[j]);
 	  moved_species[sm[j]]++;
 	}
 	nb_branches_close++;
