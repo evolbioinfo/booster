@@ -9,7 +9,7 @@
 
 #include "version.h"
 
-void tbe(Tree *ref_tree, char **alt_tree_strings,char** taxname_lookup_table, FILE *stat_file, int num_trees, int quiet, double dist_cutoff);
+void tbe(Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxname_lookup_table, FILE *stat_file, int num_trees, int quiet, double dist_cutoff);
 void fbp(Tree *ref_tree, char **alt_tree_strings,char** taxname_lookup_table, int num_trees, int quiet);
 
 void usage(FILE * out,char *name){
@@ -18,7 +18,8 @@ void usage(FILE * out,char *name){
   fprintf(out,"Options:\n");
   fprintf(out,"      -i, --input      : Input tree file\n");
   fprintf(out,"      -b, --boot       : Bootstrap tree file (1 file containing all bootstrap trees)\n");
-  fprintf(out,"      -o, --out        : Output file (optional), default : stdout\n");
+  fprintf(out,"      -o, --out        : Output file (optional) with normalized support values, default : stdout\n");
+  fprintf(out,"      -r, --out-raw    : Output file (optional) with raw support values in the form of avgdist|depth, default : none\n");
   fprintf(out,"      -@, --num-threads: Number of threads (default 1)\n");
   fprintf(out,"      -S, --stat-file  : Prints output statistics for each branch in the given output file\n");
   fprintf(out,"      -d, --dist-cutoff: Distance cutoff to consider a branch for moving taxa computation (tbe only, default 0.3)\n");
@@ -28,7 +29,7 @@ void usage(FILE * out,char *name){
   fprintf(out,"      -h, --help       : Prints this help\n");
 }
 
-void printOptions(FILE * out,char* input_tree,char * boot_trees, char * output_tree, char *output_stat, char *algo, int nb_threads, int quiet, int dist_cutoff){
+void printOptions(FILE * out,char* input_tree,char * boot_trees, char * output_tree, char * output_raw_tree, char *output_stat, char *algo, int nb_threads, int quiet, int dist_cutoff){
   fprintf(out,"**************************\n");
   fprintf(out,"*         Options        *\n");
   fprintf(out,"**************************\n");
@@ -39,6 +40,8 @@ void printOptions(FILE * out,char* input_tree,char * boot_trees, char * output_t
     fprintf(out,"Output tree     : stdout\n");
   else
     fprintf(out,"Output tree     : %s\n",output_tree);
+  if(output_raw_tree!=NULL)
+    fprintf(out,"Output raw tree : %s\n",output_raw_tree);
   if(output_stat==NULL)
     fprintf(out,"Stat file       : None\n");
   else
@@ -133,13 +136,16 @@ int main (int argc, char* argv[]) {
   FILE *intree_file = NULL;
   FILE *boottree_file = NULL;
   FILE *stat_file = NULL;
-
+  FILE *output_raw_file = NULL; /* Output tree file with edge bootstrap values noted as "avgdist|topo_depth" */
+  
   char *input_tree = NULL;
   char *boot_trees = NULL;
   char *out_tree = NULL;
+  char *out_raw_tree = NULL;
   char *stat_out = NULL;
 
   Tree *ref_tree;
+  Tree *ref_raw_tree = NULL; /* For raw support at edges : avgdist|depth */
   char **alt_tree_strings;
 
   char *algo = "tbe";
@@ -154,6 +160,7 @@ int main (int argc, char* argv[]) {
     {"input", required_argument, 0, 'i'},
     {"boot" , required_argument, 0, 'b'},
     {"out"  , required_argument, 0, 'o'},
+    {"out-raw"  , required_argument, 0, 'r'},
     {"stat-file" , required_argument, 0, 'S'},
     {"algo" , required_argument, 0, 'a'},
     {"dist-cutoff" , required_argument, 0, 'd'},
@@ -176,6 +183,7 @@ int main (int argc, char* argv[]) {
     case 'a': algo = optarg; break;
     case 'd': sscanf(optarg,"%lf",&dist_cutoff); break;
     case 'S': stat_out = optarg; break;
+    case 'r': out_raw_tree = optarg; break;
     case 'q': quiet = 1; break;
     case 'h': usage(stdout,argv[0]); return EXIT_SUCCESS; break; 
     case 'v': version(stdout,argv[0]); return EXIT_SUCCESS; break;
@@ -222,7 +230,17 @@ int main (int argc, char* argv[]) {
     }
   }
 
-  if(!quiet) printOptions(stderr, input_tree, boot_trees, out_tree, stat_out, algo, num_threads, quiet, dist_cutoff);
+  /* writing the output tree to the file given on the commandline */
+  if(out_raw_tree != NULL){
+    output_raw_file = fopen(out_raw_tree,"w");
+    if(output_raw_file == NULL){
+      fprintf(stderr,"File %s not found or not writable. Aborting.\n", out_raw_tree);
+      Generic_Exit(__FILE__,__LINE__,__FUNCTION__,EXIT_FAILURE);
+    }
+  }
+
+  
+  if(!quiet) printOptions(stderr, input_tree, boot_trees, out_tree, out_raw_tree, stat_out, algo, num_threads, quiet, dist_cutoff);
 
   intree_file = fopen(input_tree,"r");
   if (intree_file == NULL) {
@@ -248,6 +266,10 @@ int main (int argc, char* argv[]) {
   /* and then feed this string to the parser */
   char** taxname_lookup_table = NULL;
   ref_tree  = complete_parse_nh(big_string, &taxname_lookup_table); /* sets taxname_lookup_table en passant */
+  if(out_raw_tree !=NULL){
+    ref_raw_tree  = complete_parse_nh(big_string, &taxname_lookup_table); /* sets taxname_lookup_table en passant */
+  }
+
 
   /***********************************************************************/
   /* Establishing the list of bootstrapped trees we are going to analyze */
@@ -283,11 +305,14 @@ int main (int argc, char* argv[]) {
   if(!quiet)  fprintf(stderr,"Num trees: %d\n",num_trees);
 
   if(!strcmp(algo,"tbe")){
-    tbe(ref_tree, alt_tree_strings, taxname_lookup_table, stat_file, num_trees, quiet, dist_cutoff);
+    tbe(ref_tree, ref_raw_tree, alt_tree_strings, taxname_lookup_table, stat_file, num_trees, quiet, dist_cutoff);
   }else{
     fbp(ref_tree, alt_tree_strings, taxname_lookup_table, num_trees, quiet);
   }
   write_nh_tree(ref_tree, output_file);
+  if(output_raw_file!=NULL && ref_raw_tree!=NULL){
+    write_nh_tree(ref_raw_tree, output_raw_file);
+  }
 
   fclose(output_file);
   if(stat_file != NULL) fclose(stat_file);
@@ -368,7 +393,7 @@ void fbp(Tree *ref_tree, char **alt_tree_strings,char** taxname_lookup_table, in
   free_bitset_hashmap(hm);
 }
 
-void tbe(Tree *ref_tree, char **alt_tree_strings,char** taxname_lookup_table, FILE *stat_file, int num_trees, int quiet, double dist_cutoff){
+void tbe(Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxname_lookup_table, FILE *stat_file, int num_trees, int quiet, double dist_cutoff){
   short unsigned** c_matrix;
   short unsigned** i_matrix;
   short unsigned** hamming;
@@ -486,12 +511,22 @@ void tbe(Tree *ref_tree, char **alt_tree_strings,char** taxname_lookup_table, FI
       sprintf(ref_tree->a_edges[i]->right->name, "%.6f", bootstrap_val);
 
       ref_tree->a_edges[i]->branch_support = bootstrap_val;
+      
+      if(ref_raw_tree!=NULL){
+	/* the bootstrap value for a branch is inscribed as the name of its descendant as avgdist|depth */
+	if(ref_raw_tree->a_edges[i]->right->name) free(ref_raw_tree->a_edges[i]->right->name); /* clear name if existing */
+	ref_raw_tree->a_edges[i]->right->name = (char*) malloc(16 * sizeof(char));
+	card = ref_raw_tree->a_edges[i]->hashtbl[1]->num_items;
+	if (card > n/2) { card = n - card; }
+	avg_dist      = (double) dist_accu[i] * 1.0 / num_trees;
+	sprintf(ref_raw_tree->a_edges[i]->right->name, "%.6f|%d", avg_dist,ref_tree->a_edges[i]->topo_depth);
+      }
     }
 
     if(stat_file != NULL){
-      fprintf(stat_file,"Taxa transfer indexes:\n");
+      fprintf(stat_file,"Taxon\ttIndex\n");
       for(i=0; i<ref_tree->nb_taxa;i++){
-	fprintf(stat_file,"%s : %f\n", taxname_lookup_table[i], moved_species_counts[i]*100.0 / ((double)num_trees));
+	fprintf(stat_file,"%s\t%f\n", taxname_lookup_table[i], moved_species_counts[i]*100.0 / ((double)num_trees));
       }
     }
   }

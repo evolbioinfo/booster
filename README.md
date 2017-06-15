@@ -27,14 +27,18 @@ sudo yum install libgomp
 ## Usage
 
 ```
-Usage: ./booster_macos64 -i <tree file> -b <bootstrap prefix or file> [-@ <cpus>  -S <stat file> -o <output tree> -v]
+Usage: ./booster_macos64 -i <tree file> -b <bootstrap prefix or file> [-d <dist_cutoff> -r <raw distance output tree file> -@ <cpus>  -S <stat file> -o <output tree> -v]
 Options:
       -i : Input tree file
       -b : Bootstrap tree file (1 file containing all bootstrap trees)
       -o : Output file (optional), default : stdout
+      -r, --out-raw : Output file (only with tbe, optional) with raw transfer distance as support values in the form of
+                       avgdist|depth, default : none
       -@ : Number of threads (default 1)
       -a, --algo  : bootstrap algorithm, tbe or fbp (default tbe)
-      -S : Prints output statistics for each branch in the given output file
+      -S : Prints output logs in the given output file (average raw min transfer distance per branches, and average
+      	   transfer index per taxa)
+      -d, --dist-cutoff: Distance cutoff to consider a branch for moving taxa computation (tbe only, default 0.3)
       -q, --quiet : Does not print progress messages during analysis
       -v : Prints version (optional)
       -h : Prints this help
@@ -46,6 +50,7 @@ Options:
 * `-@`: Number of threads
 * `-a`: Bootstrap algorithm: `tbe` (Transfer Bootstrap Expectation) or `fbp` (Felsenstein Bootstrap Proportion)
 * `-S`: Output statistic file
+* `-r`: If you need to analyze individual average transfer distances of branches computed during a TBE run (`-a tbe`), you can give this option `-r`. In that case, booster will output a tree in newick format in the given file, and that will contain average transfer distances as branch support, in the form `avgdist|depth`.
 
 ## Example of workflow
 
