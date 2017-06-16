@@ -23,7 +23,7 @@ void usage(FILE * out,char *name){
   fprintf(out,"      -r, --out-raw          : Output file (optional) with raw support values in the form of id|avgdist|depth, default : none\n");
   fprintf(out,"      -@, --num-threads      : Number of threads (default 1)\n");
   fprintf(out,"      -S, --stat-file        : Prints output statistics for each branch in the given output file\n");
-  fprintf(out,"      -c, --count-per-branch : Prints individual taxa moves for each branches in the log file\n");
+  fprintf(out,"      -c, --count-per-branch : Prints individual taxa moves for each branches in the log file (only with -S & -a tbe)\n");
   fprintf(out,"      -d, --dist-cutoff      : Distance cutoff to consider a branch for moving taxa computation (tbe only, default 0.3)\n");
   fprintf(out,"      -a, --algo             : tbe or fbp (default tbe\n");
   fprintf(out,"      -q, --quiet            : Does not print progress messages during analysis\n");

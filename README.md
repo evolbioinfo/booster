@@ -38,6 +38,7 @@ Options:
       -a, --algo  : bootstrap algorithm, tbe or fbp (default tbe)
       -S : Prints output logs in the given output file (average raw min transfer distance per branches, and average
       	   transfer index per taxa)
+      -c, --count-per-branch : Prints individual taxa moves for each branches in the log file (only with -S and -a tbe)
       -d, --dist-cutoff: Distance cutoff to consider a branch for moving taxa computation (tbe only, default 0.3)
       -q, --quiet : Does not print progress messages during analysis
       -v : Prints version (optional)
@@ -45,12 +46,13 @@ Options:
 ```
 
 ## Options
-* `-i`: Reference tree file : a reference tree in newick format
-* `-b`: Bootstrap tree file : a set of bootstrap trees in newick format
-* `-@`: Number of threads
-* `-a`: Bootstrap algorithm: `tbe` (Transfer Bootstrap Expectation) or `fbp` (Felsenstein Bootstrap Proportion)
-* `-S`: Output statistic file
-* `-r`: If you need to analyze individual average transfer distances of branches computed during a TBE run (`-a tbe`), you can give this option `-r`. In that case, booster will output a tree in newick format in the given file, and that will contain average transfer distances as branch support, in the form `avgdist|depth`.
+* `-i`: Reference tree file : a reference tree in newick format;
+* `-b`: Bootstrap tree file : a set of bootstrap trees in newick format;
+* `-@`: Number of threads;
+* `-a`: Bootstrap algorithm: `tbe` (Transfer Bootstrap Expectation) or `fbp` (Felsenstein Bootstrap Proportion);
+* `-S`: Output statistic file;
+* `-r`: If you need to analyze individual average transfer distances of branches computed during a TBE run (`-a tbe`), you can give this option `-r`. In that case, booster will output a tree in newick format in the given file, and that will contain average transfer distances as branch support, in the form `avgdist|depth`;
+* `-c`: If you want to characterize the taxa responsible for a given tbe support, for example if you want to known wether a support of 70% is always due the same 30% species that move in all the bootstrap trees or not, you may use this option. It will print a matrix with branch ids in row, taxa in column, and each value is the percentage of bootstrap trees for which: 1) a minimum distance branch closest than the given cutoff (`-d`) exists; and 2) the taxon moves around that branch. Please note that with very large trees, the matrix may be very large as there is one row per internal branch, and one column per taxon.
 
 ## Example of workflow
 
