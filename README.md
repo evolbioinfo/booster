@@ -33,7 +33,7 @@ Options:
       -b : Bootstrap tree file (1 file containing all bootstrap trees)
       -o : Output file (optional), default : stdout
       -r, --out-raw : Output file (only with tbe, optional) with raw transfer distance as support values in the form of
-                       avgdist|depth, default : none
+                       id|avgdist|depth, default : none
       -@ : Number of threads (default 1)
       -a, --algo  : bootstrap algorithm, tbe or fbp (default tbe)
       -S : Prints output logs in the given output file (average raw min transfer distance per branches, and average
@@ -51,8 +51,8 @@ Options:
 * `-@`: Number of threads;
 * `-a`: Bootstrap algorithm: `tbe` (Transfer Bootstrap Expectation) or `fbp` (Felsenstein Bootstrap Proportion);
 * `-S`: Output statistic file;
-* `-r`: If you need to analyze individual average transfer distances of branches computed during a TBE run (`-a tbe`), you can give this option `-r`. In that case, booster will output a tree in newick format in the given file, and that will contain average transfer distances as branch support, in the form `avgdist|depth`;
-* `-c`: If you want to characterize the taxa responsible for a given tbe support, for example if you want to known wether a support of 70% is always due the same 30% species that move in all the bootstrap trees or not, you may use this option. It will print a matrix with branch ids in row, taxa in column, and each value is the percentage of bootstrap trees for which: 1) a minimum distance branch closest than the given cutoff (`-d`) exists; and 2) the taxon moves around that branch. Please note that with very large trees, the matrix may be very large as there is one row per internal branch, and one column per taxon.
+* `-r`: If you need to analyze individual average transfer distances of branches computed during a TBE run (`-a tbe`), you can give this option `-r`. In that case, booster will output a tree in newick format in the given file, and that will contain average transfer distances as branch support, in the form `id|avgdist|depth`;
+* `-c`: If you want to characterize the taxa responsible for a given tbe support, for example if you want to known wether a support of 70% is always due the same 30% species that move in all the bootstrap trees or not, you may use this option. It will print a matrix with branch ids in row, taxa in column, and each value is the percentage of bootstrap trees for which: 1) a minimum distance branch closest than the given cutoff (`-d`) exists; and 2) the taxon moves around that branch. Please note that with very large trees, the matrix may be very large as there is one row per internal branch, and one column per taxon. Finally, branch identifiers are given in the branch labels of the "raw distance tree" with option `-r`.
 
 ## Example of workflow
 
