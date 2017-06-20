@@ -388,15 +388,12 @@ void tbe(Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxn
   
   /* array a[i][j] of number of bootstrap tree from which each taxon j moves around the branch i and that are closer than given distance */
   int **moved_species_counts_per_branch;
-  /* array a[i] of number of bootstrap tree having a min dist branch closer to i than given distance */
-  int *nb_trees_close;
 
   if(stat_file != NULL && count_per_branch){
     moved_species_counts_per_branch = (int**) calloc(m,sizeof(int*));
     for(i=0;i<m;i++){
       moved_species_counts_per_branch[i]  = (int*) calloc(n,sizeof(int));
     }
-    nb_trees_close = (int*) calloc(m,sizeof(int));
   }
   dist_accu_tmp = (int**) calloc(num_trees,sizeof(int*)); /* array of distance sums, one per boot tree and branch. Initialized to 0. */
   for(i_tree=0; i_tree< num_trees; i_tree++){
@@ -404,7 +401,7 @@ void tbe(Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxn
   }
   moved_species_counts = (double*) calloc(m,sizeof(double)); /* array of average branch rate in which each taxon moves */
 
-#pragma omp parallel for private(min_dist,c_matrix,i_matrix,hamming,min_dist_edge, i, alt_tree, moved_species) shared(max_branches_boot, ref_tree, alt_tree_strings, dist_accu_tmp, taxname_lookup_table, m, moved_species_counts, moved_species_counts_per_branch, nb_trees_close) schedule(dynamic)
+#pragma omp parallel for private(min_dist,c_matrix,i_matrix,hamming,min_dist_edge, i, alt_tree, moved_species) shared(max_branches_boot, ref_tree, alt_tree_strings, dist_accu_tmp, taxname_lookup_table, m, moved_species_counts, moved_species_counts_per_branch) schedule(dynamic)
   for(i_tree=0; i_tree< num_trees; i_tree++){
     if(!quiet) fprintf(stderr,"New bootstrap tree : %d\n",i_tree);
     alt_tree = complete_parse_nh(alt_tree_strings[i_tree], &taxname_lookup_table);
@@ -440,24 +437,20 @@ void tbe(Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxn
 
       double norm  = ((double)min_dist[i]) * 1.0 / (((double)re->topo_depth) - 1.0);
       int mindepth = (int)(ceil(1.0/dist_cutoff + 1.0));
-      if (norm <= dist_cutoff && re->topo_depth >= mindepth ){
-	int* sm = species_to_move(re, be, min_dist[i], n);
-	for(j=0;j<min_dist[i];j++){
+      int* sm = species_to_move(re, be, min_dist[i], n);
+      for(j=0;j<min_dist[i];j++){
+	if (norm <= dist_cutoff && re->topo_depth >= mindepth ){
 	  moved_species[sm[j]]++;
-	  
-	  if(stat_file != NULL && count_per_branch){
-            #pragma omp atomic update
-	    moved_species_counts_per_branch[i][sm[j]]++;
-	  }
 	}
-	nb_branches_close++;
-
 	if(stat_file != NULL && count_per_branch){
           #pragma omp atomic update
-	  nb_trees_close[i]++;
+	  moved_species_counts_per_branch[i][sm[j]]++;
 	}
-	free(sm);
       }
+      if (norm <= dist_cutoff && re->topo_depth >= mindepth ){
+	nb_branches_close++;
+      }
+      free(sm);
     }
 
     /* output, just to see */
@@ -536,17 +529,16 @@ void tbe(Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxn
     fprintf(stat_file,"\n");
     for(i=0; i<m;i++){
       if(ref_tree->a_edges[i]->right->nneigh == 1) { continue; }
-      fprintf(stat_file,"%d\t%s", i,ref_tree->a_edges[i]->right->name);      
+      fprintf(stat_file,"%d\t%s", i,ref_tree->a_edges[i]->right->name);
       for(j=0;j<n;j++){
-	fprintf(stat_file,"\t%f",moved_species_counts_per_branch[i][j]*1.0/nb_trees_close[i]);
+	fprintf(stat_file,"\t%f",moved_species_counts_per_branch[i][j]*1.0/num_trees);
       }
-      fprintf(stat_file,"\n");      
+      fprintf(stat_file,"\n");
     }
     for(i=0;i<m;i++){
       free(moved_species_counts_per_branch[i]);
     }
     free(moved_species_counts_per_branch);
-    free(nb_trees_close);
   }
   
   free(dist_accu);
