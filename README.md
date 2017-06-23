@@ -27,7 +27,7 @@ sudo yum install libgomp
 ## Usage
 
 ```
-Usage: ./booster_macos64 -i <tree file> -b <bootstrap prefix or file> [-d <dist_cutoff> -r <raw distance output tree file> -@ <cpus>  -S <stat file> -o <output tree> -v]
+Usage: ./booster -i <tree file> -b <bootstrap prefix or file> [-d <dist_cutoff> -r <raw distance output tree file> -@ <cpus>  -S <stat file> -o <output tree> -v]
 Options:
       -i : Input tree file
       -b : Bootstrap tree file (1 file containing all bootstrap trees)
