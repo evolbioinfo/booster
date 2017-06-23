@@ -27,15 +27,15 @@ sudo yum install libgomp
 ## Usage
 
 ```
-Usage: ./booster -i <tree file> -b <bootstrap prefix or file> [-d <dist_cutoff> -r <raw distance output tree file> -@ <cpus>  -S <stat file> -o <output tree> -v]
+Usage: ./booster -i <ref tree file (newick)> -b <bootstrap tree file (newick)> [-d <dist_cutoff> -r <raw distance output tree file> -@ <cpus>  -S <stat file> -o <output tree> -v]
 Options:
       -i : Input tree file
       -b : Bootstrap tree file (1 file containing all bootstrap trees)
+      -a, --algo  : bootstrap algorithm, tbe (transfer bootstrap) or fbp (Felsenstein bootstrap) (default tbe)
       -o : Output file (optional), default : stdout
       -r, --out-raw : Output file (only with tbe, optional) with raw transfer distance as support values in the form of
                        id|avgdist|depth, default : none
       -@ : Number of threads (default 1)
-      -a, --algo  : bootstrap algorithm, tbe or fbp (default tbe)
       -S : Prints output logs in the given output file (average raw min transfer distance per branches, and average
       	   transfer index per taxa)
       -c, --count-per-branch : Prints individual taxa moves for each branches in the log file (only with -S and -a tbe)
@@ -58,7 +58,7 @@ Options:
 
 You have a nucleotide alignment and you want to compute booster supports with 100 bootstrap samples. The first step is to generate reference and bootstrap trees. Several ways to do it depending on the phylogenetic tool you want to use:
 
-* PhyML: PhyML already generates bootstrap trees
+* PhyML: Standard bootstrap + TBE
 ```bash
 # Compute trees
 phyml -i align.phy -d nt -b 100 -m GTR -f e -t e -c 6 -a e -s BEST -o tlr 
@@ -66,19 +66,19 @@ phyml -i align.phy -d nt -b 100 -m GTR -f e -t e -c 6 -a e -s BEST -o tlr
 booster -a tbe -i align.phy_phyml_tree.txt -b align.phy_phyml_boot_trees.txt -@ 5 -o booster.nw
 ```
 
-* RAxML: FBP with RAxML
+* RAxML: Standard bootstrap + TBE
 ```bash
-# Build reference tree
+# Infer reference tree
 raxmlHPC -m GTRGAMMA -p $RANDOM -s align.phy -n REF
-# Build bootstrap trees
+# Infer bootstrap trees
 raxmlHPC -m GTRGAMMA -p $RANDOM -b $RANDOM -# 100 -s align.phy -n BOOT
 # Compute booster support
 booster -a tbe -i RAxML_bestTree.REF -b RAxML_bootstrap.BOOT -@ 5 -o booster.nw
 ```
 
-* RAxML: Booster supports and rapid bootstrap
+* RAxML: Rapid bootstrap + TBE
 ```bash
-# Build reference tree + bootstrap trees
+# Infer reference tree + bootstrap trees
 raxmlHPC -f a -m GTRGAMMA -c 4 -s align.phy -n align -T 4 -p $RANDOM -x $RANDOM -# 100
 # Compute booster support
 booster -a tbe -i RAxML_bestTree.align -b RAxML_bootstrap.align -@ 5 -o booster.nw
@@ -88,15 +88,15 @@ booster -a tbe -i RAxML_bestTree.align -b RAxML_bootstrap.align -@ 5 -o booster.
 ```bash
 # Build bootstrap alignments
 goalign build seqboot -i align.phy -p -n 100 -o boot -S
-# Build reference tree
+# Infer reference tree
 FastTree -nt -gtr align.phy > ref.nhx
-# Build bootstrap trees
+# Infer bootstrap trees
 cat boot*.ph | FastTree -nt -n 100 -gtr > boot.nhx
 # Compute booster supports
 booster -a tbe -i ref.nhx -b boot.nhx -@ 5 -o booster.nw
 ```
 
-* IQ-TREE : Booster supports and ultrafast bootstrap
+* IQ-TREE : Ultrafast bootstrap + TBE
 ```
 # Infer ML tree + ultrafast bootstrap trees
 iqtree-omp -wbt -s align.phy -m GTR -bb 100 -nt 5
