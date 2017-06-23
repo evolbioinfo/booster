@@ -9,22 +9,27 @@
 
 #include "version.h"
 
+/**
+   A large part of the code was initally implemented by Jean-Baka Domelevo-Entfellner 
+   (tree structures, tbe algorithm)
+*/
+
 void tbe(Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxname_lookup_table, FILE *stat_file, int num_trees, int quiet, double dist_cutoff,int count_per_branch);
 void fbp(Tree *ref_tree, char **alt_tree_strings,char** taxname_lookup_table, int num_trees, int quiet);
 int* species_to_move(Edge* re, Edge* be, int dist, int nb_taxa);
 
 void usage(FILE * out,char *name){
   fprintf(out,"Usage: ");
-  fprintf(out,"%s -i <tree file> -b <bootstrap prefix or file> [-@ <cpus>  -S <stat file> -o <output tree> -v]\n",name);
+  fprintf(out,"%s -i <ref tree file (newick)> -b <bootstrap tree file (newick)> [-@ <cpus> -d <dist_cutoff> -r <raw distance output tree file> -S <stat file> -o <output tree> -v]\n",name);
   fprintf(out,"Options:\n");
   fprintf(out,"      -i, --input            : Input tree file\n");
   fprintf(out,"      -b, --boot             : Bootstrap tree file (1 file containing all bootstrap trees)\n");
   fprintf(out,"      -o, --out              : Output file (optional) with normalized support values, default : stdout\n");
   fprintf(out,"      -r, --out-raw          : Output file (optional) with raw support values in the form of id|avgdist|depth, default : none\n");
   fprintf(out,"      -@, --num-threads      : Number of threads (default 1)\n");
-  fprintf(out,"      -S, --stat-file        : Prints output statistics for each branch in the given output file\n");
+  fprintf(out,"      -S, --stat-file        : Prints output statistics for each branch in the given output file (optional)\n");
   fprintf(out,"      -c, --count-per-branch : Prints individual taxa moves for each branches in the log file (only with -S & -a tbe)\n");
-  fprintf(out,"      -d, --dist-cutoff      : Distance cutoff to consider a branch for moving taxa computation (tbe only, default 0.3)\n");
+  fprintf(out,"      -d, --dist-cutoff      : Distance cutoff to consider a branch for taxa transfer infex computation (-a tbe only, default 0.3)\n");
   fprintf(out,"      -a, --algo             : tbe or fbp (default tbe\n");
   fprintf(out,"      -q, --quiet            : Does not print progress messages during analysis\n");
   fprintf(out,"      -v, --version          : Prints version (optional)\n");
