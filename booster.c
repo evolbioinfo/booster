@@ -9,27 +9,34 @@
 
 #include "version.h"
 
-void tbe(Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxname_lookup_table, FILE *stat_file, int num_trees, int quiet, double dist_cutoff);
+/**
+   A large part of the code was initally implemented by Jean-Baka Domelevo-Entfellner 
+   (tree structures, tbe algorithm)
+*/
+
+void tbe(Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxname_lookup_table, FILE *stat_file, int num_trees, int quiet, double dist_cutoff,int count_per_branch);
 void fbp(Tree *ref_tree, char **alt_tree_strings,char** taxname_lookup_table, int num_trees, int quiet);
+int* species_to_move(Edge* re, Edge* be, int dist, int nb_taxa);
 
 void usage(FILE * out,char *name){
   fprintf(out,"Usage: ");
-  fprintf(out,"%s -i <tree file> -b <bootstrap prefix or file> [-@ <cpus>  -S <stat file> -o <output tree> -v]\n",name);
+  fprintf(out,"%s -i <ref tree file (newick)> -b <bootstrap tree file (newick)> [-@ <cpus> -d <dist_cutoff> -r <raw distance output tree file> -S <stat file> -o <output tree> -v]\n",name);
   fprintf(out,"Options:\n");
-  fprintf(out,"      -i, --input      : Input tree file\n");
-  fprintf(out,"      -b, --boot       : Bootstrap tree file (1 file containing all bootstrap trees)\n");
-  fprintf(out,"      -o, --out        : Output file (optional) with normalized support values, default : stdout\n");
-  fprintf(out,"      -r, --out-raw    : Output file (optional) with raw support values in the form of avgdist|depth, default : none\n");
-  fprintf(out,"      -@, --num-threads: Number of threads (default 1)\n");
-  fprintf(out,"      -S, --stat-file  : Prints output statistics for each branch in the given output file\n");
-  fprintf(out,"      -d, --dist-cutoff: Distance cutoff to consider a branch for moving taxa computation (tbe only, default 0.3)\n");
-  fprintf(out,"      -a, --algo       : tbe or fbp (default tbe\n");
-  fprintf(out,"      -q, --quiet      : Does not print progress messages during analysis\n");
-  fprintf(out,"      -v, --version    : Prints version (optional)\n");
-  fprintf(out,"      -h, --help       : Prints this help\n");
+  fprintf(out,"      -i, --input            : Input tree file\n");
+  fprintf(out,"      -b, --boot             : Bootstrap tree file (1 file containing all bootstrap trees)\n");
+  fprintf(out,"      -o, --out              : Output file (optional) with normalized support values, default : stdout\n");
+  fprintf(out,"      -r, --out-raw          : Output file (optional) with raw support values in the form of id|avgdist|depth, default : none\n");
+  fprintf(out,"      -@, --num-threads      : Number of threads (default 1)\n");
+  fprintf(out,"      -S, --stat-file        : Prints output statistics for each branch in the given output file (optional)\n");
+  fprintf(out,"      -c, --count-per-branch : Prints individual taxa moves for each branches in the log file (only with -S & -a tbe)\n");
+  fprintf(out,"      -d, --dist-cutoff      : Distance cutoff to consider a branch for taxa transfer infex computation (-a tbe only, default 0.3)\n");
+  fprintf(out,"      -a, --algo             : tbe or fbp (default tbe\n");
+  fprintf(out,"      -q, --quiet            : Does not print progress messages during analysis\n");
+  fprintf(out,"      -v, --version          : Prints version (optional)\n");
+  fprintf(out,"      -h, --help             : Prints this help\n");
 }
 
-void printOptions(FILE * out,char* input_tree,char * boot_trees, char * output_tree, char * output_raw_tree, char *output_stat, char *algo, int nb_threads, int quiet, int dist_cutoff){
+void printOptions(FILE * out,char* input_tree,char * boot_trees, char * output_tree, char * output_raw_tree, char *output_stat, char *algo, int nb_threads, int quiet, int dist_cutoff, int count_per_branch){
   fprintf(out,"**************************\n");
   fprintf(out,"*         Options        *\n");
   fprintf(out,"**************************\n");
@@ -47,6 +54,11 @@ void printOptions(FILE * out,char* input_tree,char * boot_trees, char * output_t
   else
     fprintf(out,"Stat file       : %s\n",output_stat);
   fprintf(out,"Algo            : %s\n", algo);
+  if(count_per_branch){
+    fprintf(out,"Count tax move/branch: true\n");
+  }else{
+    fprintf(out,"Count tax move/branch: false\n");
+  }
   fprintf(out,"Threads         : %d\n", nb_threads);
   fprintf(out,"Dist cutoff     : %d\n", dist_cutoff);
   if(quiet)
@@ -85,43 +97,6 @@ void free_matrices(int nb_edges_ref, short unsigned*** c_matrix, short unsigned*
   free((*min_dist_edges));
 }
 
-
-// Returns the list of id of species to move to go from one branch to the other
-// Its length should correspond to given dist
-// If not, exit with an error
-int* species_to_move(Edge* re, Edge* be, int dist, int nb_taxa) {
-  int i;
-  int maxnb = dist;
-  if(nb_taxa-dist >= dist) maxnb=nb_taxa-dist;
-  int *diff = calloc(maxnb,sizeof(int));
-  int *equ  = calloc(maxnb,sizeof(int));
-  int nbdiff=0, nbequ=0;
-
-  for(i = 0; i < nb_taxa; i++) {
-    if(lookup_id(re->hashtbl[1],i) != lookup_id(be->hashtbl[1],i)){
-      diff[nbdiff]=i;
-      nbdiff++;
-    } else {
-      equ[nbequ] = i;
-      nbequ++;
-    }
-  }
-  if(nbdiff < nbequ){
-    if(nbdiff != dist){
-      fprintf(stderr,"Length of moved species array (%d) is not equal to the minimum distance found (%d)\n", nbdiff, dist);
-      Generic_Exit(__FILE__,__LINE__,__FUNCTION__,EXIT_FAILURE);
-    }
-    free(equ);
-    return diff;
-  }
-  if(nbequ != dist){
-      fprintf(stderr,"Length of moved species array (%d) is not equal to the minimum distance found (%d)\n", nbequ, dist);
-      Generic_Exit(__FILE__,__LINE__,__FUNCTION__,EXIT_FAILURE);
-    }
-  free(diff);
-  return equ;
-}
-
 int main (int argc, char* argv[]) {
   /* this program takes as input three arguments.
      Arg1 is the filename of the reference tree.
@@ -136,7 +111,7 @@ int main (int argc, char* argv[]) {
   FILE *intree_file = NULL;
   FILE *boottree_file = NULL;
   FILE *stat_file = NULL;
-  FILE *output_raw_file = NULL; /* Output tree file with edge bootstrap values noted as "avgdist|topo_depth" */
+  FILE *output_raw_file = NULL; /* Output tree file with edge bootstrap values noted as "id|avgdist|topo_depth" */
   
   char *input_tree = NULL;
   char *boot_trees = NULL;
@@ -145,7 +120,7 @@ int main (int argc, char* argv[]) {
   char *stat_out = NULL;
 
   Tree *ref_tree;
-  Tree *ref_raw_tree = NULL; /* For raw support at edges : avgdist|depth */
+  Tree *ref_raw_tree = NULL; /* For raw support at edges : id|avgdist|depth */
   char **alt_tree_strings;
 
   char *algo = "tbe";
@@ -155,12 +130,16 @@ int main (int argc, char* argv[]) {
   int num_threads = 1;
 
   double dist_cutoff = 0.3;
+
+  /* If true, compute and print in the log file the (normalized) number of moves of each taxa for all branches */
+  int count_per_branch = 0;
 	
   static struct option long_options[] = {
     {"input", required_argument, 0, 'i'},
     {"boot" , required_argument, 0, 'b'},
     {"out"  , required_argument, 0, 'o'},
     {"out-raw"  , required_argument, 0, 'r'},
+    {"count-per-branch", no_argument, 0, 'c'},
     {"stat-file" , required_argument, 0, 'S'},
     {"algo" , required_argument, 0, 'a'},
     {"dist-cutoff" , required_argument, 0, 'd'},
@@ -174,13 +153,14 @@ int main (int argc, char* argv[]) {
   opterr = 0;
   int option_index = 0;
   int c = 0;
-  while ((c = getopt_long(argc, argv, "i:a:b:d:o:s:@:S:n:r:hvq", long_options, &option_index)) != -1){
+  while ((c = getopt_long(argc, argv, "i:a:b:d:o:cs:@:S:n:r:hvq", long_options, &option_index)) != -1){
     switch (c){
     case 'i': input_tree = optarg; break;
     case 'b': boot_trees = optarg; break;
     case 'o': out_tree = optarg; break;
     case '@': num_threads=strtol(optarg,NULL,10); break; 
     case 'a': algo = optarg; break;
+    case 'c': count_per_branch=1; break;
     case 'd': sscanf(optarg,"%lf",&dist_cutoff); break;
     case 'S': stat_out = optarg; break;
     case 'r': out_raw_tree = optarg; break;
@@ -240,7 +220,7 @@ int main (int argc, char* argv[]) {
   }
 
   
-  if(!quiet) printOptions(stderr, input_tree, boot_trees, out_tree, out_raw_tree, stat_out, algo, num_threads, quiet, dist_cutoff);
+  if(!quiet) printOptions(stderr, input_tree, boot_trees, out_tree, out_raw_tree, stat_out, algo, num_threads, quiet, dist_cutoff,count_per_branch);
 
   intree_file = fopen(input_tree,"r");
   if (intree_file == NULL) {
@@ -305,7 +285,7 @@ int main (int argc, char* argv[]) {
   if(!quiet)  fprintf(stderr,"Num trees: %d\n",num_trees);
 
   if(!strcmp(algo,"tbe")){
-    tbe(ref_tree, ref_raw_tree, alt_tree_strings, taxname_lookup_table, stat_file, num_trees, quiet, dist_cutoff);
+    tbe(ref_tree, ref_raw_tree, alt_tree_strings, taxname_lookup_table, stat_file, num_trees, quiet, dist_cutoff, count_per_branch);
   }else{
     fbp(ref_tree, alt_tree_strings, taxname_lookup_table, num_trees, quiet);
   }
@@ -393,13 +373,13 @@ void fbp(Tree *ref_tree, char **alt_tree_strings,char** taxname_lookup_table, in
   free_bitset_hashmap(hm);
 }
 
-void tbe(Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxname_lookup_table, FILE *stat_file, int num_trees, int quiet, double dist_cutoff){
+void tbe(Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxname_lookup_table, FILE *stat_file, int num_trees, int quiet, double dist_cutoff, int count_per_branch){
   short unsigned** c_matrix;
   short unsigned** i_matrix;
   short unsigned** hamming;
   short unsigned* min_dist_edge; /* array of edge ids corresponding to min Hamming distances */
   short unsigned* min_dist;
-  int i;
+  int i,j;
   int m = ref_tree->nb_edges;
   int n = ref_tree->nb_taxa;
   Tree *alt_tree;
@@ -411,13 +391,22 @@ void tbe(Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxn
   /** Max number of branches we can see in the bootstrap tree: If it has no multifurcation : binary tree--> ntax*2-2 (if rooted...) */
   int max_branches_boot = ref_tree->nb_taxa*2-2;
   
-  dist_accu_tmp      = (int**) calloc(num_trees,sizeof(int*)); /* array of distance sums, one per boot tree and branch. Initialized to 0. */
+  /* array a[i][j] of number of bootstrap tree from which each taxon j moves around the branch i and that are closer than given distance */
+  int **moved_species_counts_per_branch;
+
+  if(stat_file != NULL && count_per_branch){
+    moved_species_counts_per_branch = (int**) calloc(m,sizeof(int*));
+    for(i=0;i<m;i++){
+      moved_species_counts_per_branch[i]  = (int*) calloc(n,sizeof(int));
+    }
+  }
+  dist_accu_tmp = (int**) calloc(num_trees,sizeof(int*)); /* array of distance sums, one per boot tree and branch. Initialized to 0. */
   for(i_tree=0; i_tree< num_trees; i_tree++){
     dist_accu_tmp[i_tree]  = (int*) calloc(m,sizeof(int)); /* array of distance sums, one per branch. Initialized to 0. */
   }
   moved_species_counts = (double*) calloc(m,sizeof(double)); /* array of average branch rate in which each taxon moves */
 
-#pragma omp parallel for private(min_dist,c_matrix,i_matrix,hamming,min_dist_edge, i, alt_tree, moved_species) shared(max_branches_boot, ref_tree, alt_tree_strings, dist_accu_tmp, taxname_lookup_table, m, moved_species_counts) schedule(dynamic)
+#pragma omp parallel for private(min_dist,c_matrix,i_matrix,hamming,min_dist_edge, i, alt_tree, moved_species) shared(max_branches_boot, ref_tree, alt_tree_strings, dist_accu_tmp, taxname_lookup_table, m, moved_species_counts, moved_species_counts_per_branch) schedule(dynamic)
   for(i_tree=0; i_tree< num_trees; i_tree++){
     if(!quiet) fprintf(stderr,"New bootstrap tree : %d\n",i_tree);
     alt_tree = complete_parse_nh(alt_tree_strings[i_tree], &taxname_lookup_table);
@@ -426,7 +415,7 @@ void tbe(Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxn
       fprintf(stderr,"Not a correct NH tree (%d). Skipping.\n%s\n",i_tree,alt_tree_strings[i_tree]);
       continue; /* some files maybe not containing trees */
     }
-    if (alt_tree->nb_taxa != ref_tree->nb_taxa) {
+    if (alt_tree->nb_taxa != n) {
       fprintf(stderr,"This tree doesn't have the same number of taxa as the reference tree. Skipping.\n");
       continue; /* some files maybe not containing trees */
     }
@@ -443,7 +432,7 @@ void tbe(Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxn
     update_all_i_c_post_order_boot_tree(ref_tree, alt_tree, i_matrix, c_matrix, hamming, min_dist, min_dist_edge);
 
     /* Looking at number of times each taxon moves around low distance branches */
-    moved_species = (int*) calloc(ref_tree->nb_taxa,sizeof(int));
+    moved_species = (int*) calloc(n,sizeof(int));
     int nb_branches_close=0;
     int j;
     for(i=0;i<m;i++){
@@ -453,14 +442,20 @@ void tbe(Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxn
 
       double norm  = ((double)min_dist[i]) * 1.0 / (((double)re->topo_depth) - 1.0);
       int mindepth = (int)(ceil(1.0/dist_cutoff + 1.0));
-      if (norm <= dist_cutoff && re->topo_depth >= mindepth ){
-	int* sm = species_to_move(re, be, min_dist[i], ref_tree->nb_taxa);
-	for (j=0;j<min_dist[i];j++){
+      int* sm = species_to_move(re, be, min_dist[i], n);
+      for(j=0;j<min_dist[i];j++){
+	if (norm <= dist_cutoff && re->topo_depth >= mindepth ){
 	  moved_species[sm[j]]++;
 	}
-	nb_branches_close++;
-	free(sm);
+	if(stat_file != NULL && count_per_branch){
+          #pragma omp atomic update
+	  moved_species_counts_per_branch[i][sm[j]]++;
+	}
       }
+      if (norm <= dist_cutoff && re->topo_depth >= mindepth ){
+	nb_branches_close++;
+      }
+      free(sm);
     }
 
     /* output, just to see */
@@ -468,7 +463,7 @@ void tbe(Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxn
       /* Just backup for pvalue computation */
       dist_accu_tmp[i_tree][i] = min_dist[i];
     }
-    for (i=0; i < ref_tree->nb_taxa; i++){
+    for (i=0; i < n; i++){
       #pragma omp atomic update
       moved_species_counts[i] += ((double)moved_species[i])*1.0/((double)nb_branches_close);
     }
@@ -513,27 +508,86 @@ void tbe(Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxn
       ref_tree->a_edges[i]->branch_support = bootstrap_val;
       
       if(ref_raw_tree!=NULL){
-	/* the bootstrap value for a branch is inscribed as the name of its descendant as avgdist|depth */
+	/* the bootstrap value for a branch is inscribed as the name of its descendant as id|avgdist|depth */
 	if(ref_raw_tree->a_edges[i]->right->name) free(ref_raw_tree->a_edges[i]->right->name); /* clear name if existing */
 	ref_raw_tree->a_edges[i]->right->name = (char*) malloc(16 * sizeof(char));
 	card = ref_raw_tree->a_edges[i]->hashtbl[1]->num_items;
 	if (card > n/2) { card = n - card; }
 	avg_dist      = (double) dist_accu[i] * 1.0 / num_trees;
-	sprintf(ref_raw_tree->a_edges[i]->right->name, "%.6f|%d", avg_dist,ref_tree->a_edges[i]->topo_depth);
+	sprintf(ref_raw_tree->a_edges[i]->right->name, "%d|%.6f|%d", ref_raw_tree->a_edges[i]->id, avg_dist,ref_tree->a_edges[i]->topo_depth);
       }
     }
 
     if(stat_file != NULL){
       fprintf(stat_file,"Taxon\ttIndex\n");
-      for(i=0; i<ref_tree->nb_taxa;i++){
+      for(i=0; i<n;i++){
 	fprintf(stat_file,"%s\t%f\n", taxname_lookup_table[i], moved_species_counts[i]*100.0 / ((double)num_trees));
       }
     }
   }
+
+  if(stat_file != NULL && count_per_branch){
+    fprintf(stat_file,"Edge\tSupport");
+    for(i=0; i<n;i++){
+      fprintf(stat_file,"\t%s", taxname_lookup_table[i]);
+    }
+    fprintf(stat_file,"\n");
+    for(i=0; i<m;i++){
+      if(ref_tree->a_edges[i]->right->nneigh == 1) { continue; }
+      fprintf(stat_file,"%d\t%s", i,ref_tree->a_edges[i]->right->name);
+      for(j=0;j<n;j++){
+	fprintf(stat_file,"\t%f",moved_species_counts_per_branch[i][j]*1.0/num_trees);
+      }
+      fprintf(stat_file,"\n");
+    }
+    for(i=0;i<m;i++){
+      free(moved_species_counts_per_branch[i]);
+    }
+    free(moved_species_counts_per_branch);
+  }
+  
   free(dist_accu);
   for(i_tree=0; i_tree < num_trees;i_tree++){
     free(dist_accu_tmp[i_tree]);
   }
   free(dist_accu_tmp);
   free(moved_species_counts);
+}
+
+
+
+// Returns the list of id of species to move to go from one branch to the other
+// Its length should correspond to given dist
+// If not, exit with an error
+int* species_to_move(Edge* re, Edge* be, int dist, int nb_taxa) {
+  int i;
+  int maxnb = dist;
+  if(nb_taxa-dist >= dist) maxnb=nb_taxa-dist;
+  int *diff = calloc(maxnb,sizeof(int));
+  int *equ  = calloc(maxnb,sizeof(int));
+  int nbdiff=0, nbequ=0;
+
+  for(i = 0; i < nb_taxa; i++) {
+    if(lookup_id(re->hashtbl[1],i) != lookup_id(be->hashtbl[1],i)){
+      diff[nbdiff]=i;
+      nbdiff++;
+    } else {
+      equ[nbequ] = i;
+      nbequ++;
+    }
+  }
+  if(nbdiff < nbequ){
+    if(nbdiff != dist){
+      fprintf(stderr,"Length of moved species array (%d) is not equal to the minimum distance found (%d)\n", nbdiff, dist);
+      Generic_Exit(__FILE__,__LINE__,__FUNCTION__,EXIT_FAILURE);
+    }
+    free(equ);
+    return diff;
+  }
+  if(nbequ != dist){
+      fprintf(stderr,"Length of moved species array (%d) is not equal to the minimum distance found (%d)\n", nbequ, dist);
+      Generic_Exit(__FILE__,__LINE__,__FUNCTION__,EXIT_FAILURE);
+    }
+  free(diff);
+  return equ;
 }
