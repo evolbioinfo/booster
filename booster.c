@@ -29,14 +29,14 @@ void usage(FILE * out,char *name){
   fprintf(out,"      -@, --num-threads      : Number of threads (default 1)\n");
   fprintf(out,"      -S, --stat-file        : Prints output statistics for each branch in the given output file (optional)\n");
   fprintf(out,"      -c, --count-per-branch : Prints individual taxa moves for each branches in the log file (only with -S & -a tbe)\n");
-  fprintf(out,"      -d, --dist-cutoff      : Distance cutoff to consider a branch for taxa transfer infex computation (-a tbe only, default 0.3)\n");
-  fprintf(out,"      -a, --algo             : tbe or fbp (default tbe\n");
+  fprintf(out,"      -d, --dist-cutoff      : Distance cutoff to consider a branch for taxa transfer index computation (-a tbe only, default 0.3)\n");
+  fprintf(out,"      -a, --algo             : tbe or fbp (default tbe)\n");
   fprintf(out,"      -q, --quiet            : Does not print progress messages during analysis\n");
   fprintf(out,"      -v, --version          : Prints version (optional)\n");
   fprintf(out,"      -h, --help             : Prints this help\n");
 }
 
-void printOptions(FILE * out,char* input_tree,char * boot_trees, char * output_tree, char * output_raw_tree, char *output_stat, char *algo, int nb_threads, int quiet, int dist_cutoff, int count_per_branch){
+void printOptions(FILE * out,char* input_tree,char * boot_trees, char * output_tree, char * output_raw_tree, char *output_stat, char *algo, int nb_threads, int quiet, double dist_cutoff, int count_per_branch){
   fprintf(out,"**************************\n");
   fprintf(out,"*         Options        *\n");
   fprintf(out,"**************************\n");
@@ -60,7 +60,7 @@ void printOptions(FILE * out,char* input_tree,char * boot_trees, char * output_t
     fprintf(out,"Count tax move/branch: false\n");
   }
   fprintf(out,"Threads         : %d\n", nb_threads);
-  fprintf(out,"Dist cutoff     : %d\n", dist_cutoff);
+  fprintf(out,"Dist cutoff     : %f\n", dist_cutoff);
   if(quiet)
     fprintf(out,"Quiet           : true\n");
   else
@@ -220,7 +220,7 @@ int main (int argc, char* argv[]) {
   }
 
   
-  if(!quiet) printOptions(stderr, input_tree, boot_trees, out_tree, out_raw_tree, stat_out, algo, num_threads, quiet, dist_cutoff,count_per_branch);
+  if(!quiet) printOptions(stderr, input_tree, boot_trees, out_tree, out_raw_tree, stat_out, algo, num_threads, quiet, dist_cutoff, count_per_branch);
 
   intree_file = fopen(input_tree,"r");
   if (intree_file == NULL) {
