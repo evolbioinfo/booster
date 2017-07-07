@@ -1,4 +1,4 @@
-# BOOSTER : BOOtstrap Support by TransfER
+# BOOSTER : BOOtstrap Support by TransfER ([preprint](http://www.biorxiv.org/content/early/2017/06/23/154542))
 BOOSTER is a new way of computing bootstrap supports in large phylogenies.
 
 See http://booster.c3bi.pasteur.fr/help for more informations.
