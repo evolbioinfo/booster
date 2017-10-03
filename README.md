@@ -61,9 +61,15 @@ You have a nucleotide alignment and you want to compute booster supports with 10
 * PhyML: Standard bootstrap + TBE
 ```bash
 # Compute trees
-phyml -i align.phy -d nt -b 100 -m GTR -f e -t e -c 6 -a e -s BEST -o tlr 
+phyml -i align.phy -d nt -b 100 -m GTR -f e -t e -c 6 -a e -s SPR -o tlr 
 # Compute booster supports
 booster -a tbe -i align.phy_phyml_tree.txt -b align.phy_phyml_boot_trees.txt -@ 5 -o booster.nw
+```
+
+* PhyML only (beta): Need to download and build PhyML from its [github repository](https://github.com/stephaneguindon/phyml/)
+```bash
+# Compute trees + TBE supports
+phyml -i align.phy -d nt -b 100 --tbe -m GTR -f e -t e -c 6 -a e -s SPR -o tlr 
 ```
 
 * RAxML: Standard bootstrap + TBE
