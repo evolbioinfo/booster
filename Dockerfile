@@ -7,7 +7,7 @@ FROM ubuntu:16.04
 # File Author / Maintainer
 MAINTAINER Frederic Lemoine <frederic.lemoine@pasteur.fr>
 
-COPY . /usr/local/booster
+COPY src /usr/local/booster
 
 RUN apt-get update --fix-missing \
     && apt-get install -y wget gcc make libgomp1 git \
