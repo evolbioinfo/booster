@@ -5,7 +5,32 @@ See http://booster.c3bi.pasteur.fr/help for more informations.
 
 # Help
 
-## Dependencies
+## Install BOOSTER
+
+### Binaries
+You can download ready to run binaries for the latest release in the [release](https://github.com/evolbioinfo/booster/releases) section.
+Binaries are available for MacOS, Linux, and Windows.
+
+### Docker
+BOOSTER Docker image is accessible from [docker hub](https://hub.docker.com/r/evolbioinfo/booster/). You may use it as follows:
+
+```[bash]
+# Display booster help
+docker run -v $PWD:$PWD -w $PWD -i -t evolbioinfo/booster -h
+```
+
+### Singularity
+BOOSTER [docker image](https://hub.docker.com/r/evolbioinfo/booster/) is usable from singularity . You may use it as follows:
+
+```[bash]
+# Pull image from docker hub
+singularity pull docker://evolbioinfo/booster
+# Display booster help
+./booster.simg -h
+```
+### From Sources
+If previous installation methods do not fit your needs, you can build BOOSTER from sources.
+
 BOOSTER depends on [OpenMP](https://fr.wikipedia.org/wiki/OpenMP), which should be installed first before building BOOSTER.
 
 For example:
@@ -18,11 +43,11 @@ sudo apt-get install libgomp1
 sudo yum install libgomp
 ```
 
-## Install BOOSTER
+Then: 
 
 * First download a [release](https://github.com/fredericlemoine/booster/releases) or clone the repository;
-* Then enter the directory and type `make`
-* The booster executable should be located in the current directory
+* enter the `src` directory and type `make`;
+* booster executable should be located in the current directory.
 
 ## Usage
 
