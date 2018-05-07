@@ -137,7 +137,7 @@ booster -a tbe -i align.phy.treefile -b align.phy.ufboot -@ 5 -o booster.nw
 
 # Reference
 
-If you use BOOSTER, please cite:
+If you use BOOSTER, please cite this [article](https://www.nature.com/articles/s41586-018-0043-0):
 
 ```
 Renewing Felsenstein's Phylogenetic Bootstrap in the Era of Big Data
