@@ -59,6 +59,11 @@ void usage(FILE * out,char *name){
   fprintf(out,"      -q, --quiet            : Does not print progress messages during analysis\n");
   fprintf(out,"      -v, --version          : Prints version (optional)\n");
   fprintf(out,"      -h, --help             : Prints this help\n");
+  fprintf(out,"\n");
+  fprintf(out,"If you use BOOSTER, please cite:\n");
+  fprintf(out,"Renewing Felsenstein's Phylogenetic Bootstrap in the Era of Big Data\n");
+  fprintf(out,"F. Lemoine, J.-B. Domelevo-Entfellner, E. Wilkinson, D. Correia, M. Davila Felipe, T. De Oliveira, O. Gascuel.\n");
+  fprintf(out,"Nature 556, 452-456 (2018)\n");
 }
 
 void printOptions(FILE * out,char* input_tree,char * boot_trees, char * output_tree, char * output_raw_tree, char *output_stat, char *algo, int nb_threads, int quiet, double dist_cutoff, int count_per_branch){

@@ -1,4 +1,4 @@
-# BOOSTER : BOOtstrap Support by TransfER ([preprint](http://www.biorxiv.org/content/early/2017/06/23/154542))
+# BOOSTER : BOOtstrap Support by TransfER
 BOOSTER is a new way of computing bootstrap supports in large phylogenies.
 
 See http://booster.c3bi.pasteur.fr/help for more informations.
@@ -133,4 +133,14 @@ booster -a tbe -i ref.nhx -b boot.nhx -@ 5 -o booster.nw
 iqtree-omp -wbt -s align.phy -m GTR -bb 100 -nt 5
 # Compute booster supports
 booster -a tbe -i align.phy.treefile -b align.phy.ufboot -@ 5 -o booster.nw
+```
+
+# Reference
+
+If you use BOOSTER, please cite:
+
+```
+Renewing Felsenstein's Phylogenetic Bootstrap in the Era of Big Data
+F. Lemoine, J.-B. Domelevo-Entfellner, E. Wilkinson, D. Correia, M. Davila Felipe, T. De Oliveira, O. Gascuel.
+Nature 556, 452-456 (2018)
 ```
