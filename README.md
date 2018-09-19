@@ -127,7 +127,7 @@ cat boot*.ph | FastTree -nt -n 100 -gtr > boot.nhx
 booster -a tbe -i ref.nhx -b boot.nhx -@ 5 -o booster.nw
 ```
 
-* IQ-TREE : Ultrafast bootstrap + TBE
+* IQ-TREE : Standard bootstrap + TBE
 ```
 # Infer ML tree + standard bootstrap trees
 iqtree-omp -s align.phy -m GTR -b 100 -nt 5
