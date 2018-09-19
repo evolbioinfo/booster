@@ -129,10 +129,10 @@ booster -a tbe -i ref.nhx -b boot.nhx -@ 5 -o booster.nw
 
 * IQ-TREE : Ultrafast bootstrap + TBE
 ```
-# Infer ML tree + ultrafast bootstrap trees
-iqtree-omp -wbt -s align.phy -m GTR -bb 100 -nt 5
+# Infer ML tree + standard bootstrap trees
+iqtree-omp -s align.phy -m GTR -b 100 -nt 5
 # Compute booster supports
-booster -a tbe -i align.phy.treefile -b align.phy.ufboot -@ 5 -o booster.nw
+booster -a tbe -i align.phy.treefile -b align.phy.boottrees -@ 5 -o booster.nw
 ```
 
 # Reference

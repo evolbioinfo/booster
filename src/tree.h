@@ -35,7 +35,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #define	FALSE	0
 
 #define	MIN_BRLEN	1e-8
-#define MAX_TREELENGTH	10000000 /* more or less 10MB for a tree file in NH format */
+#define MAX_TREELENGTH	100000000 /* more or less 10MB for a tree file in NH format */
 #define MAX_NODE_DEPTH	100000 /* max depth for nodes in the tree */
 
 #define MAX_NAMELENGTH		255	/* max length of a taxon name */
