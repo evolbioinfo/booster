@@ -42,6 +42,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 void tbe(Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxname_lookup_table, FILE *stat_file, int num_trees, int quiet, double dist_cutoff,int count_per_branch);
 void fbp(Tree *ref_tree, char **alt_tree_strings,char** taxname_lookup_table, int num_trees, int quiet);
 int* species_to_move(Edge* re, Edge* be, int dist, int nb_taxa);
+void transfer_index(Tree *ref_tree, const int n, const int m, Tree *alt_tree,
+                    int *transfer_indices, const int max_branches_boot,
+                    double *moved_species_counts,
+                    int **moved_species_counts_per_branch, int count_per_branch,
+                    const double dist_cutoff);
 
 void usage(FILE * out,char *name){
   fprintf(out,"Usage: ");
@@ -163,7 +168,7 @@ int main (int argc, char* argv[]) {
 
   /* If true, compute and print in the log file the (normalized) number of moves of each taxa for all branches */
   int count_per_branch = 0;
-	
+
   static struct option long_options[] = {
     {"input", required_argument, 0, 'i'},
     {"boot" , required_argument, 0, 'b'},
@@ -304,8 +309,8 @@ int main (int argc, char* argv[]) {
   while(copy_nh_stream_into_str(boottree_file, big_string)) /* reads from the current point in the stream, retcode 1 iff no error */
     {
       if(num_trees >= init_boot_trees){
-	alt_tree_strings = realloc(alt_tree_strings,init_boot_trees*2*sizeof(char*));
-	init_boot_trees *= 2;
+        alt_tree_strings = realloc(alt_tree_strings,init_boot_trees*2*sizeof(char*));
+        init_boot_trees *= 2;
       }
       alt_tree_strings[num_trees] = strdup(big_string);
       num_trees++;
@@ -379,8 +384,8 @@ void fbp(Tree *ref_tree, char **alt_tree_strings,char** taxname_lookup_table, in
       // We query the hashmap to see if the edge is present, and then get its reference index
       int refindex = bitset_hashmap_value(hm, alt_tree->a_edges[j]->hashtbl[1], alt_tree->nb_taxa);
       if (refindex>-1){
-	#pragma omp atomic update
-	nb_found[refindex]++;
+        #pragma omp atomic update
+        nb_found[refindex]++;
       }
     }
     free_tree(alt_tree);
@@ -404,25 +409,17 @@ void fbp(Tree *ref_tree, char **alt_tree_strings,char** taxname_lookup_table, in
 }
 
 void tbe(Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxname_lookup_table, FILE *stat_file, int num_trees, int quiet, double dist_cutoff, int count_per_branch){
-  short unsigned** c_matrix;
-  short unsigned** i_matrix;
-  short unsigned** hamming;
-  short unsigned* min_dist_edge; /* array of edge ids corresponding to min Hamming distances */
-  short unsigned* min_dist;
   int i,j;
   int m = ref_tree->nb_edges;
   int n = ref_tree->nb_taxa;
-  Tree *alt_tree;
   int i_tree;
-  int *dist_accu      = (int*) calloc(m,sizeof(int)); /* array of distance sums, one per branch. Initialized to 0. */
   int **dist_accu_tmp;
   double *moved_species_counts;  /* array of average branch rate in which each taxon moves */
-  int *moved_species; /* array of number of branches in which each taxon moves, in one bootstrap tree: initialized at each bootstrap tree */
   /** Max number of branches we can see in the bootstrap tree: If it has no multifurcation : binary tree--> ntax*2-2 (if rooted...) */
   int max_branches_boot = ref_tree->nb_taxa*2-2;
   
   /* array a[i][j] of number of bootstrap tree from which each taxon j moves around the branch i and that are closer than given distance */
-  int **moved_species_counts_per_branch;
+  int **moved_species_counts_per_branch = NULL;
 
   if(stat_file != NULL && count_per_branch){
     moved_species_counts_per_branch = (int**) calloc(m,sizeof(int*));
@@ -436,7 +433,8 @@ void tbe(Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxn
   }
   moved_species_counts = (double*) calloc(m,sizeof(double)); /* array of average branch rate in which each taxon moves */
 
-#pragma omp parallel for private(min_dist,c_matrix,i_matrix,hamming,min_dist_edge, i, alt_tree, moved_species) shared(max_branches_boot, ref_tree, alt_tree_strings, dist_accu_tmp, taxname_lookup_table, m, moved_species_counts, moved_species_counts_per_branch) schedule(dynamic)
+  Tree *alt_tree;
+#pragma omp parallel for private(i, alt_tree) shared(max_branches_boot, ref_tree, alt_tree_strings, dist_accu_tmp, taxname_lookup_table, n, m, moved_species_counts, moved_species_counts_per_branch) schedule(dynamic)
   for(i_tree=0; i_tree< num_trees; i_tree++){
     if(!quiet) fprintf(stderr,"New bootstrap tree : %d\n",i_tree);
     alt_tree = complete_parse_nh(alt_tree_strings[i_tree], &taxname_lookup_table);
@@ -450,61 +448,17 @@ void tbe(Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxn
       continue; /* some files maybe not containing trees */
     }
 
-    /* resetting the arrays that need be reset. By construction of the post-order traversal,
-       the other arrays (i_matrix, c_matrix and hamming) need not be reset. */
-    reset_matrices(n, m, max_branches_boot, &c_matrix, &i_matrix, &hamming, &min_dist,&min_dist_edge);
-
-    /****************************************************/
-    /* comparison of the bipartitions, Transfer method */
-    /****************************************************/		  
-    /* calculation of the C and I matrices (see Brehelin/Gascuel/Martin) */
-    update_all_i_c_post_order_ref_tree(ref_tree, alt_tree, i_matrix, c_matrix);
-    update_all_i_c_post_order_boot_tree(ref_tree, alt_tree, i_matrix, c_matrix, hamming, min_dist, min_dist_edge);
-
-    /* Looking at number of times each taxon moves around low distance branches */
-    moved_species = (int*) calloc(n,sizeof(int));
-    int nb_branches_close=0;
-    int j;
-    for(i=0;i<m;i++){
-      Edge* re = ref_tree->a_edges[i];
-      if (re->right->nneigh == 1) continue;
-      Edge* be = alt_tree->a_edges[min_dist_edge[i]];
-
-      double norm  = ((double)min_dist[i]) * 1.0 / (((double)re->topo_depth) - 1.0);
-      int mindepth = (int)(ceil(1.0/dist_cutoff + 1.0));
-      int* sm = species_to_move(re, be, min_dist[i], n);
-      for(j=0;j<min_dist[i];j++){
-	if (norm <= dist_cutoff && re->topo_depth >= mindepth ){
-	  moved_species[sm[j]]++;
-	}
-	if(stat_file != NULL && count_per_branch){
-          #pragma omp atomic update
-	  moved_species_counts_per_branch[i][sm[j]]++;
-	}
-      }
-      if (norm <= dist_cutoff && re->topo_depth >= mindepth ){
-	nb_branches_close++;
-      }
-      free(sm);
-    }
-
-    /* output, just to see */
-    for (i = 0; i < m; i++) {
-      /* Just backup for pvalue computation */
-      dist_accu_tmp[i_tree][i] = min_dist[i];
-    }
-    for (i=0; i < n; i++){
-      #pragma omp atomic update
-      moved_species_counts[i] += ((double)moved_species[i])*1.0/((double)nb_branches_close);
-    }
-
-    free_matrices(m, &c_matrix, &i_matrix, &hamming, &min_dist,&min_dist_edge);
-    free_tree(alt_tree);
-    free(moved_species);
+    transfer_index(ref_tree, n, m, alt_tree, dist_accu_tmp[i_tree],
+                   max_branches_boot, moved_species_counts,
+                   moved_species_counts_per_branch,
+                   count_per_branch, dist_cutoff);
   }
 
+  // _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
   #pragma omp barrier
 
+  int *dist_accu = (int*) calloc(m,sizeof(int)); //array of distance sums, one
+                                                 //per branch. Initialized to 0.
   for (i = 0; i < m; i++){
     for(i_tree=0; i_tree < num_trees; i_tree++){
       dist_accu[i] += dist_accu_tmp[i_tree][i];
@@ -513,7 +467,7 @@ void tbe(Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxn
 
   int card;
   double bootstrap_val, avg_dist;
-		
+
   if(num_trees != 0) {
     if(stat_file != NULL)
       fprintf(stat_file,"EdgeId\tDepth\tMeanMinDist\n");
@@ -531,27 +485,27 @@ void tbe(Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxn
       bootstrap_val = (double) 1.0 - avg_dist * 1.0 / (1.0 * ref_tree->a_edges[i]->topo_depth-1.0);
 
       if(stat_file != NULL)
-	fprintf(stat_file,"%d\t%d\t%f\n", i, (ref_tree->a_edges[i]->topo_depth), avg_dist);
+        fprintf(stat_file,"%d\t%d\t%f\n", i, (ref_tree->a_edges[i]->topo_depth), avg_dist);
 
       sprintf(ref_tree->a_edges[i]->right->name, "%.6f", bootstrap_val);
 
       ref_tree->a_edges[i]->branch_support = bootstrap_val;
       
       if(ref_raw_tree!=NULL){
-	/* the bootstrap value for a branch is inscribed as the name of its descendant as id|avgdist|depth */
-	if(ref_raw_tree->a_edges[i]->right->name) free(ref_raw_tree->a_edges[i]->right->name); /* clear name if existing */
-	ref_raw_tree->a_edges[i]->right->name = (char*) malloc(16 * sizeof(char));
-	card = ref_raw_tree->a_edges[i]->hashtbl[1]->num_items;
-	if (card > n/2) { card = n - card; }
-	avg_dist      = (double) dist_accu[i] * 1.0 / num_trees;
-	sprintf(ref_raw_tree->a_edges[i]->right->name, "%d|%.6f|%d", ref_raw_tree->a_edges[i]->id, avg_dist,ref_tree->a_edges[i]->topo_depth);
+        /* the bootstrap value for a branch is inscribed as the name of its descendant as id|avgdist|depth */
+        if(ref_raw_tree->a_edges[i]->right->name) free(ref_raw_tree->a_edges[i]->right->name); /* clear name if existing */
+        ref_raw_tree->a_edges[i]->right->name = (char*) malloc(16 * sizeof(char));
+        card = ref_raw_tree->a_edges[i]->hashtbl[1]->num_items;
+        if (card > n/2) { card = n - card; }
+        avg_dist      = (double) dist_accu[i] * 1.0 / num_trees;
+        sprintf(ref_raw_tree->a_edges[i]->right->name, "%d|%.6f|%d", ref_raw_tree->a_edges[i]->id, avg_dist,ref_tree->a_edges[i]->topo_depth);
       }
     }
 
     if(stat_file != NULL){
       fprintf(stat_file,"Taxon\ttIndex\n");
       for(i=0; i<n;i++){
-	fprintf(stat_file,"%s\t%f\n", taxname_lookup_table[i], moved_species_counts[i]*100.0 / ((double)num_trees));
+        fprintf(stat_file,"%s\t%f\n", taxname_lookup_table[i], moved_species_counts[i]*100.0 / ((double)num_trees));
       }
     }
   }
@@ -566,7 +520,7 @@ void tbe(Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxn
       if(ref_tree->a_edges[i]->right->nneigh == 1) { continue; }
       fprintf(stat_file,"%d\t%s", i,ref_tree->a_edges[i]->right->name);
       for(j=0;j<n;j++){
-	fprintf(stat_file,"\t%f",moved_species_counts_per_branch[i][j]*1.0/num_trees);
+        fprintf(stat_file,"\t%f",moved_species_counts_per_branch[i][j]*1.0/num_trees);
       }
       fprintf(stat_file,"\n");
     }
@@ -585,6 +539,75 @@ void tbe(Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxn
 }
 
 
+/*
+Compute the Transfer Index comparing a reference tree to a alternative
+(bootstrap) tree.
+
+transfer_indices[i] will have the transfer index for edge i.
+*/
+void transfer_index(Tree *ref_tree, const int n, const int m, Tree *alt_tree,
+                    int *transfer_indices,
+                    const int max_branches_boot, double *moved_species_counts,
+                    int **moved_species_counts_per_branch, int count_per_branch,
+                    const double dist_cutoff){
+  
+  short unsigned** c_matrix;     //matrix of cardinals of complements
+  short unsigned** i_matrix;     //matrix of cardinals of intersections
+  short unsigned** hamming;      //matrix of Hamming distances
+  short unsigned* min_dist_edge; //edge ids corresponding to min Hamming dists
+  short unsigned* min_dist;      //edge ids corresponding to min Hamming dists
+  int *moved_species; /* array of number of branches in which each taxon moves, in one bootstrap tree: initialized at each bootstrap tree */
+  moved_species = (int*) calloc(n,sizeof(int));
+
+  /* resetting the arrays that need be reset. By construction of the post-order traversal,
+     the other arrays (i_matrix, c_matrix and hamming) need not be reset. */
+  reset_matrices(n, m, max_branches_boot, &c_matrix, &i_matrix, &hamming, &min_dist,&min_dist_edge);
+
+  /****************************************************/
+  /* comparison of the bipartitions, Transfer method */
+  /****************************************************/		  
+  /* calculation of the C and I matrices (see Brehelin/Gascuel/Martin) */
+  update_all_i_c_post_order_ref_tree(ref_tree, alt_tree, i_matrix, c_matrix);
+  update_all_i_c_post_order_boot_tree(ref_tree, alt_tree, i_matrix, c_matrix, hamming, min_dist, min_dist_edge);
+
+  /* Looking at number of times each taxon moves around low distance branches */
+  int nb_branches_close=0;
+  int i, j;
+  for(i=0;i<m;i++){
+    Edge* re = ref_tree->a_edges[i];
+    if (re->right->nneigh == 1) continue;
+    Edge* be = alt_tree->a_edges[min_dist_edge[i]];
+
+    double norm  = ((double)min_dist[i]) * 1.0 / (((double)re->topo_depth) - 1.0);
+    int mindepth = (int)(ceil(1.0/dist_cutoff + 1.0));
+    int* sm = species_to_move(re, be, min_dist[i], n);
+    for(j=0;j<min_dist[i];j++){
+      if (norm <= dist_cutoff && re->topo_depth >= mindepth ){
+        moved_species[sm[j]]++;
+      }
+      if(moved_species_counts_per_branch != NULL && count_per_branch){
+        #pragma omp atomic update
+        moved_species_counts_per_branch[i][sm[j]]++;
+      }
+    }
+    if (norm <= dist_cutoff && re->topo_depth >= mindepth ){
+      nb_branches_close++;
+      }
+    free(sm);
+  }
+
+  for (i = 0; i < m; i++) {          //Record the transfer index for each edge.
+    transfer_indices[i] = min_dist[i];
+  }
+  for (i=0; i < n; i++){
+    #pragma omp atomic update
+    moved_species_counts[i] += ((double)moved_species[i])*1.0/((double)nb_branches_close);
+  }
+
+  free_matrices(m, &c_matrix, &i_matrix, &hamming, &min_dist,&min_dist_edge);
+  free_tree(alt_tree);
+  free(moved_species);
+}
 
 // Returns the list of id of species to move to go from one branch to the other
 // Its length should correspond to given dist
