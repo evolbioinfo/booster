@@ -29,7 +29,7 @@ ifeq ($(UNAME),Darwin)
 endif
 
 LIBS = -lm
-OBJS = hashtables_bfields.o  tree.o stats.o prng.o hashmap.o version.o sort.o io.o tree_utils.o bitset_index.o
+OBJS = hashtables_bfields.o  tree.o stats.o prng.o hashmap.o version.o sort.o io.o tree_utils.o bitset_index.o rapid_transfer.o
 
 # default target
 ALL = booster

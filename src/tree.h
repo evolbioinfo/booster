@@ -30,6 +30,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "hashmap.h"
 #include "io.h"
 #include <ctype.h>
+#include <stdbool.h>
 
 #define	TRUE	1
 #define	FALSE	0
@@ -67,6 +68,7 @@ typedef struct __Node {
 	struct __Node** neigh;	/* neighbour nodes */
 	struct __Edge** br;	/* corresponding branches going from this node */
 	double depth;		/* the depth of a node is its min distance to a leaf */
+	int subtreesize;  // size of the subtree rooted at this node (assume rooted).
 } Node;
 
 
@@ -285,4 +287,38 @@ void write_subtree_to_stream(Node* node, Node* node_from, FILE* stream);
 void free_edge(Edge* edge);
 void free_node(Node* node);
 void free_tree(Tree* tree);
+
+/* Functions added for rapid computation of the Transfer Index. */
+
+/*
+Return an array of indices to leaves in the node list.
+
+** user responsible for the memory of the returned array.
+*/
+int* get_leaves(Tree* tree);
+
+/*
+Update the subtree size of the target node.
+
+** assumes binary rooted tree.
+*/
+void update_subtree_sizes_doer(Node* target, Node* orig, Tree* t);
+
+/*
+Set subtree size for all nodes.
+
+** assumes binary rooted tree.
+*/
+void update_subtree_sizes(Tree* tree);
+
+void print_node_callback(Node* n, Node* m, Tree* t);
+void print_node(Node* n);
+
+/*
+Return true if the given Node is the right child of its parent.
+
+** assume u is not the root.
+*/
+bool is_right_child(Node* u);
+
 #endif /* _TREE_H_ */

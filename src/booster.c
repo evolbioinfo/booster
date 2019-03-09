@@ -26,6 +26,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "io.h"
 #include "tree.h"
 #include "bitset_index.h"
+#include "rapid_transfer.h"
 
 #include <string.h> /* for strcpy, strdup, etc */
 #include <getopt.h>
@@ -42,11 +43,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 void tbe(Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxname_lookup_table, FILE *stat_file, int num_trees, int quiet, double dist_cutoff,int count_per_branch);
 void fbp(Tree *ref_tree, char **alt_tree_strings,char** taxname_lookup_table, int num_trees, int quiet);
 int* species_to_move(Edge* re, Edge* be, int dist, int nb_taxa);
-void transfer_indices(Tree *ref_tree, const int n, const int m, Tree *alt_tree,
-                      int *transfer_indices, const int max_branches_boot,
-                      double *moved_species_counts,
-                      int **moved_species_counts_per_branch,
-                      int count_per_branch, const double dist_cutoff);
+void compute_transfer_indices(Tree *ref_tree, const int n, const int m,
+                              Tree *alt_tree, int *transfer_indices,
+                              const int max_branches_boot,
+                              double *moved_species_counts,
+                              int **moved_species_counts_per_branch,
+                              int count_per_branch, const double dist_cutoff);
 
 void usage(FILE * out,char *name){
   fprintf(out,"Usage: ");
@@ -414,6 +416,7 @@ void tbe(Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxn
   int n = ref_tree->nb_taxa;
   int i_tree;
   int **trans_ind_tmp;
+  int **trans_ind_new;
   double *moved_species_counts;  /* array of average branch rate in which each taxon moves */
   /** Max number of branches we can see in the bootstrap tree: If it has no multifurcation : binary tree--> ntax*2-2 (if rooted...) */
   int max_branches_boot = ref_tree->nb_taxa*2-2;
@@ -428,13 +431,15 @@ void tbe(Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxn
     }
   }
   trans_ind_tmp = (int**) calloc(num_trees,sizeof(int*)); /* array of index sums, one per boot tree and branch. Initialized to 0. */
+  trans_ind_new = (int**) calloc(num_trees,sizeof(int*)); /* array of index sums, one per boot tree and branch. Initialized to 0. */
   for(i_tree=0; i_tree< num_trees; i_tree++){
     trans_ind_tmp[i_tree]  = (int*) calloc(m,sizeof(int)); /* array of index sums, one per branch. Initialized to 0. */
+    trans_ind_new[i_tree]  = (int*) calloc(m,sizeof(int)); /* array of index sums, one per branch. Initialized to 0. */
   }
   moved_species_counts = (double*) calloc(m,sizeof(double)); /* array of average branch rate in which each taxon moves */
 
   Tree *alt_tree;
-#pragma omp parallel for private(i, alt_tree) shared(max_branches_boot, ref_tree, alt_tree_strings, trans_ind_tmp, taxname_lookup_table, n, m, moved_species_counts, moved_species_counts_per_branch) schedule(dynamic)
+#pragma omp parallel for private(i, alt_tree) shared(max_branches_boot, ref_tree, alt_tree_strings, trans_ind_tmp, trans_ind_new, taxname_lookup_table, n, m, moved_species_counts, moved_species_counts_per_branch) schedule(dynamic)
   for(i_tree=0; i_tree< num_trees; i_tree++){
     if(!quiet) fprintf(stderr,"New bootstrap tree : %d\n",i_tree);
     alt_tree = complete_parse_nh(alt_tree_strings[i_tree], &taxname_lookup_table);
@@ -448,10 +453,13 @@ void tbe(Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxn
       continue; /* some files maybe not containing trees */
     }
 
-    transfer_indices(ref_tree, n, m, alt_tree, trans_ind_tmp[i_tree],
-                     max_branches_boot, moved_species_counts,
-                     moved_species_counts_per_branch,
-                     count_per_branch, dist_cutoff);
+    compute_transfer_indices_new(ref_tree, n, m, alt_tree,
+                                 trans_ind_new[i_tree]);
+
+    compute_transfer_indices(ref_tree, n, m, alt_tree, trans_ind_tmp[i_tree],
+                             max_branches_boot, moved_species_counts,
+                             moved_species_counts_per_branch,
+                             count_per_branch, dist_cutoff);
   }
 
   #pragma omp barrier
@@ -539,16 +547,17 @@ void tbe(Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxn
 
 
 /*
-Compute the Transfer Index comparing a reference tree to a alternative
-(bootstrap) tree.
+Compute the Transfer Index for all edges, comparing a reference tree to an
+alternative (bootstrap) tree.
 
 transfer_index[i] will have the transfer index for edge i.
 */
-void transfer_indices(Tree *ref_tree, const int n, const int m, Tree *alt_tree,
-                      int *transfer_index,
-                      const int max_branches_boot, double *moved_species_counts,
-                      int **moved_species_counts_per_branch,
-                      int count_per_branch, const double dist_cutoff){
+void compute_transfer_indices(Tree *ref_tree, const int n, const int m,
+                              Tree *alt_tree, int *transfer_index,
+                              const int max_branches_boot,
+                              double *moved_species_counts,
+                              int **moved_species_counts_per_branch,
+                              int count_per_branch, const double dist_cutoff){
   
   short unsigned** c_matrix;     //matrix of cardinals of complements
   short unsigned** i_matrix;     //matrix of cardinals of intersections

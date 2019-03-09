@@ -1391,6 +1391,8 @@ Tree *complete_parse_nh(char* big_string, char*** taxname_lookup_table) {
 	update_node_depths_post_alltree(mytree);
 	update_node_depths_pre_alltree(mytree);
 
+	update_subtree_sizes(mytree);      //Set the subtree sizes for the nodes
+
 	/* for all branches in the tree, we should assert that the sum of the number of taxa on the left
 	   and on the right of the branch is equal to tree->nb_taxa */
 	for (i = 0; i < mytree->nb_edges; i++)
@@ -2058,4 +2060,73 @@ Tree * gen_rand_tree(int nbr_taxa, char **taxa_names){
   update_all_topo_depths_from_hashtables(my_tree);
   
   return(my_tree);
+}
+
+
+
+/* Functions added for rapid computation of the Transfer Index. */
+
+/*
+Return an array of indices to leaves in the node list.
+
+** user responsible for the memory of the returned array.
+*/
+int* get_leaves(Tree* tree) {
+	int n = tree->nb_nodes;
+	int count = 0;
+	int *leaves = calloc(tree->nb_taxa, sizeof(int));
+
+	for (int i = 0; i < n; i++)
+	  if(tree->a_nodes[i]->nneigh == 1)
+	    leaves[count++] = i;
+
+	return leaves;
+}
+
+/*
+Update the subtree size of the target node.
+
+** assumes binary rooted tree.
+*/
+void update_subtree_sizes_doer(Node* target, Node* orig, Tree* t) {
+	if(target->nneigh == 1)   //leaf
+	  target->subtreesize = 1;
+	else if(target->nneigh == 2) //root
+		target->subtreesize = target->neigh[0]->subtreesize +
+		                      target->neigh[1]->subtreesize;
+	else
+		target->subtreesize = target->neigh[1]->subtreesize +
+		                      target->neigh[2]->subtreesize;
+}
+
+
+/*
+Set subtree size for all nodes.
+
+** assumes binary rooted tree.
+*/
+void update_subtree_sizes(Tree* tree) {
+	post_order_traversal(tree, &update_subtree_sizes_doer);
+}
+
+
+void print_node_callback(Node* n, Node* m, Tree* t) {
+	print_node(n);
+}
+
+void print_node(Node* n) {
+	fprintf(stderr, "node id: %i name: %s size: %i\n", n->id, n->name,
+	        n->subtreesize);
+}
+
+/*
+Return true if the given Node is the right child of its parent.
+
+** assume u is not the root.
+*/
+bool is_right_child(Node* u)
+{
+	Node* p = u->neigh[0];               //parent
+  bool parentisroot = p->nneigh == 2;
+  return ((parentisroot && u == p->neigh[1]) || u == p->neigh[2]);
 }
