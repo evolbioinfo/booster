@@ -35,9 +35,9 @@ extern void compute_transfer_indices_new(Tree *ref_tree, const int n,
     {                                      //not seen a heavier sibling
       print_node(u);
       Node* parent = u->neigh[0];
-      if(u->nneigh == 2 ||                            //u is root
-         2*u->subtreesize < parent->subtreesize ||    //u on the light side
-         (2*u->subtreesize == parent->subtreesize && is_right_child(u)))
+      if(u->nneigh == 2 ||                        //u is root
+         2*u->numleaves < parent->numleaves ||    //u on the light side
+         (2*u->numleaves == parent->numleaves && is_right_child(u)))
         u = NULL;
       else
         u = u->neigh[0];

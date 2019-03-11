@@ -68,7 +68,8 @@ typedef struct __Node {
 	struct __Node** neigh;	/* neighbour nodes */
 	struct __Edge** br;	/* corresponding branches going from this node */
 	double depth;		/* the depth of a node is its min distance to a leaf */
-	int subtreesize;  // size of the subtree rooted at this node (assume rooted).
+         // Variables used for rapid transfer index calculation:
+   int numleaves; // Number of leaves n subtree rooted at this node (assume rooted)
 } Node;
 
 

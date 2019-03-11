@@ -2084,29 +2084,36 @@ int* get_leaves(Tree* tree) {
 }
 
 /*
-Update the subtree size of the target node.
+Set up all the Node variables associated with rapid Transfer Index calculation.
 
 ** assumes binary rooted tree.
 */
-void update_subtree_sizes_doer(Node* target, Node* orig, Tree* t) {
-	if(target->nneigh == 1)   //leaf
-	  target->subtreesize = 1;
-	else if(target->nneigh == 2) //root
-		target->subtreesize = target->neigh[0]->subtreesize +
-		                      target->neigh[1]->subtreesize;
-	else
-		target->subtreesize = target->neigh[1]->subtreesize +
-		                      target->neigh[2]->subtreesize;
+void prepare_rapid_TI_doer(Node* target, Node* orig, Tree* t) {
+    // Set numleaves:
+  if(target->nneigh == 1)   //leaf
+    target->numleaves = 1;
+    else if(target->nneigh == 2) //root
+      target->numleaves = target->neigh[0]->numleaves +
+                          target->neigh[1]->numleaves;
+    else
+      target->numleaves = target->neigh[1]->numleaves +
+                          target->neigh[2]->numleaves;
+
+    // Set the rest:
+  target->diff = 0;
+  target->d_min = 1;
+  target->d_lazy = target->numleaves;
 }
 
 
 /*
-Set subtree size for all nodes.
+Set up Node variables associated with rapid Transfer Index calculation for
+all Nodes in the tree.
 
 ** assumes binary rooted tree.
 */
-void update_subtree_sizes(Tree* tree) {
-	post_order_traversal(tree, &update_subtree_sizes_doer);
+void prepare_rapid_TI(Tree* tree) {
+	post_order_traversal(tree, &prepare_rapid_TI_doer);
 }
 
 
@@ -2116,7 +2123,7 @@ void print_node_callback(Node* n, Node* m, Tree* t) {
 
 void print_node(Node* n) {
 	fprintf(stderr, "node id: %i name: %s size: %i\n", n->id, n->name,
-	        n->subtreesize);
+	        n->numleaves);
 }
 
 /*
