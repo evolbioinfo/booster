@@ -75,8 +75,8 @@ Tree* gen_random_tree(Tree *tree){
 
   update_hashtables_post_alltree(my_tree);
   update_hashtables_pre_alltree(my_tree);
-  update_node_depths_post_alltree(my_tree);
-  update_node_depths_pre_alltree(my_tree);
+  update_node_heights_post_alltree(my_tree);
+  update_node_heights_pre_alltree(my_tree);
 
   /* for all branches in the tree, we should assert that the sum of the number of taxa on the left
      and on the right of the branch is equal to tree->nb_taxa */

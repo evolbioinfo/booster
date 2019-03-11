@@ -37,7 +37,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #define	MIN_BRLEN	1e-8
 #define MAX_TREELENGTH	100000000 /* more or less 10MB for a tree file in NH format */
-#define MAX_NODE_DEPTH	100000 /* max depth for nodes in the tree */
+#define MAX_MHEIGHT	100000 /* max mheight for nodes in the tree */
 
 #define MAX_NAMELENGTH		255	/* max length of a taxon name */
 #define MAX_COMMENTLENGTH	255	/* max length of a comment string in NHX format */
@@ -67,7 +67,8 @@ typedef struct __Node {
 	short int nneigh;	/* number of neighbours */
 	struct __Node** neigh;	/* neighbour nodes */
 	struct __Edge** br;	/* corresponding branches going from this node */
-	double depth;		/* the depth of a node is its min distance to a leaf */
+	double mheight;	/* the height of a node is its min distance to a leaf */
+
          // Variables used for rapid transfer index calculation:
    int numleaves; // Number of leaves n subtree rooted at this node (assume rooted)
 } Node;
@@ -240,12 +241,12 @@ void update_bootstrap_supports_from_node_names(Tree* tree);
 void update_bootstrap_supports_doer(Node* current, Node* origin, Tree* tree);
 
 
-/* node depths */
+/* node heights */
 
-void update_node_depths_post_doer(Node* target, Node* orig, Tree* t);
-void update_node_depths_pre_doer(Node* target, Node* orig, Tree* t);
-void update_node_depths_post_alltree(Tree* tree);
-void update_node_depths_pre_alltree(Tree* tree);
+void update_node_heights_post_doer(Node* target, Node* orig, Tree* t);
+void update_node_heights_pre_doer(Node* target, Node* orig, Tree* t);
+void update_node_heights_post_alltree(Tree* tree);
+void update_node_heights_pre_alltree(Tree* tree);
 
 /* topological depths */
 void update_all_topo_depths_from_hashtables(Tree* tree);
@@ -303,14 +304,14 @@ Update the subtree size of the target node.
 
 ** assumes binary rooted tree.
 */
-void update_subtree_sizes_doer(Node* target, Node* orig, Tree* t);
+void prepare_rapid_TI_doer(Node* target, Node* orig, Tree* t);
 
 /*
 Set subtree size for all nodes.
 
 ** assumes binary rooted tree.
 */
-void update_subtree_sizes(Tree* tree);
+void prepare_rapid_TI(Tree* tree);
 
 void print_node_callback(Node* n, Node* m, Tree* t);
 void print_node(Node* n);

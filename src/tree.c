@@ -250,7 +250,7 @@ Node* new_node(const char* name, Tree* t, int degree) {
 	if(degree==1) { t->taxa_names[t->next_avail_taxon_id++] = strdup(name); }
 	nn->comment = NULL;
 	for(i=0; i < nn->nneigh; i++) { nn->neigh[i] = NULL; nn->br[i] = NULL; }
-	nn->depth = MAX_NODE_DEPTH;
+	nn->mheight = MAX_MHEIGHT;
 	t->a_nodes[nn->id] = nn; /* warning: not checking anything here! This array haas to be big enough from start */
 	t->nb_nodes++;
 	return nn;
@@ -454,7 +454,7 @@ void collapse_branch(Edge* branch, Tree* tree) {
 	new->id = node1->id; /* because we are going to store the node at this index in tree->a_nodes */
 	new->name = strdup("collapsed");
 	new->comment = NULL;
-	new->depth = min_int(node1->depth, node2->depth);
+	new->mheight = min_int(node1->mheight, node2->mheight);
 
 	/* very important: set tree->node0 to new in case it was either node1 or node2 */
 	if (tree->node0 == node1 || tree->node0 == node2) tree->node0 = new;
@@ -688,8 +688,8 @@ void remove_taxon(int taxon_id, Tree* tree){
   ntax--;
   update_hashtables_post_alltree(tree);
   update_hashtables_pre_alltree(tree);
-  update_node_depths_post_alltree(tree);
-  update_node_depths_pre_alltree(tree);
+  update_node_heights_post_alltree(tree);
+  update_node_heights_pre_alltree(tree);
 
   /**
      now for all the branches we can delete the **left** hashtables, because the information is redundant and
@@ -939,8 +939,8 @@ void shuffle_taxa(Tree *tree){
 
   update_hashtables_post_alltree(tree);
   update_hashtables_pre_alltree(tree);
-  update_node_depths_post_alltree(tree);
-  update_node_depths_pre_alltree(tree);
+  update_node_heights_post_alltree(tree);
+  update_node_heights_pre_alltree(tree);
   
   /**
      now for all the branches we can delete the **left** hashtables, because the information is redundant and
@@ -1172,7 +1172,7 @@ Node* create_son_and_connect_to_father(Node* current_node, Tree* current_tree, i
 	current_tree->nb_nodes++;
 
 	son->name = son->comment = NULL;
-	son->depth = MAX_NODE_DEPTH;
+	son->mheight = MAX_MHEIGHT;
 
 	Edge* edge = (Edge*) malloc(sizeof(Edge));
 	edge->id = current_tree->next_avail_edge_id++;
@@ -1334,7 +1334,7 @@ Tree* parse_nh_string(char* in_str) {
 	t->node0->name = NULL;
 	t->node0->comment = NULL;
 
-	t->node0->depth = MAX_NODE_DEPTH;
+	t->node0->mheight = MAX_MHEIGHT;
 	t->taxa_names = (char**) malloc(n_otu * sizeof(char*));
 	t->length_hashtables = (int) (n_otu / ceil(log10((double)n_otu)));
 
@@ -1388,10 +1388,10 @@ Tree *complete_parse_nh(char* big_string, char*** taxname_lookup_table) {
 	update_hashtables_post_alltree(mytree);
 	update_hashtables_pre_alltree(mytree);
 
-	update_node_depths_post_alltree(mytree);
-	update_node_depths_pre_alltree(mytree);
+	update_node_heights_post_alltree(mytree);
+	update_node_heights_pre_alltree(mytree);
 
-	update_subtree_sizes(mytree);      //Set the subtree sizes for the nodes
+	prepare_rapid_TI(mytree);   //Set up Node variables for rapid TI calculation.
 
 	/* for all branches in the tree, we should assert that the sum of the number of taxa on the left
 	   and on the right of the branch is equal to tree->nb_taxa */
@@ -1613,43 +1613,43 @@ void update_bootstrap_supports_doer(Node* current, Node* origin, Tree* tree) {
 
 
 
-/* CALCULATING NODE DEPTHS */
+/* CALCULATING NODE HEIGHTS */
 
-void update_node_depths_post_doer(Node* target, Node* orig, Tree* t) {
-	/* here we update the depth of the target node */
+void update_node_heights_post_doer(Node* target, Node* orig, Tree* t) {
+	/* here we update the mheight of the target node */
 	int i;
-	double depth = MAX_NODE_DEPTH;
+	double mheight = MAX_MHEIGHT;
 	if (target->nneigh == 1)
-	       	target->depth = 0.0;
+	       	target->mheight = 0.0;
 	else {
 		/* the following loop also takes care of the case where origin == NULL (target is root) */
 		for (i=0; i < target->nneigh; i++) {
 			if (target->neigh[i] == orig) continue;
-			depth = min_double(depth, target->neigh[i]->depth + (target->br[i]->had_zero_length ? 0.0 : target->br[i]->brlen));
+			mheight = min_double(mheight, target->neigh[i]->mheight + (target->br[i]->had_zero_length ? 0.0 : target->br[i]->brlen));
 		}
-		target->depth = depth;
+		target->mheight = mheight;
 	}
-} /* end of update_node_depths_post_doer */
+} /* end of update_node_heights_post_doer */
 
 
-void update_node_depths_pre_doer(Node* target, Node* orig, Tree* t) {
-	/* when we enter this function, orig already has its depth set to its final value. Update the target if its current depth is larger
+void update_node_heights_pre_doer(Node* target, Node* orig, Tree* t) {
+	/* when we enter this function, orig already has its mheight set to its final value. Update the target if its current mheight is larger
 	   than the one we get taking into account the min path to a leave from target via origin */
 	if (!orig) return; /* nothing to do on the root for this preorder: value is already correctly set by the postorder */
 	int dir_target_to_orig = dir_a_to_b(target, orig);
-	double alt_depth = orig->depth + (target->br[dir_target_to_orig]->had_zero_length ? 0.0 : target->br[dir_target_to_orig]->brlen);
-	if (alt_depth < target->depth) target->depth = alt_depth;
-} /* end of update_node_depths_pre_doer */
+	double alt_height = orig->mheight + (target->br[dir_target_to_orig]->had_zero_length ? 0.0 : target->br[dir_target_to_orig]->brlen);
+	if (alt_height < target->mheight) target->mheight = alt_height;
+} /* end of update_node_heights_pre_doer */
 
 
-void update_node_depths_post_alltree(Tree* tree) {
-	post_order_traversal(tree, &update_node_depths_post_doer);
-} /* end of update_node_depths_post_alltree */
+void update_node_heights_post_alltree(Tree* tree) {
+	post_order_traversal(tree, &update_node_heights_post_doer);
+} /* end of update_node_heights_post_alltree */
 
 
-void update_node_depths_pre_alltree(Tree* tree) {
-	pre_order_traversal(tree, &update_node_depths_pre_doer);
-} /* end of update_node_depths_pre_alltree */
+void update_node_heights_pre_alltree(Tree* tree) {
+	pre_order_traversal(tree, &update_node_heights_pre_doer);
+} /* end of update_node_heights_pre_alltree */
 
 
 
@@ -2036,8 +2036,8 @@ Tree * gen_rand_tree(int nbr_taxa, char **taxa_names){
 
   update_hashtables_post_alltree(my_tree);
   update_hashtables_pre_alltree(my_tree);
-  update_node_depths_post_alltree(my_tree);
-  update_node_depths_pre_alltree(my_tree);
+  update_node_heights_post_alltree(my_tree);
+  update_node_heights_pre_alltree(my_tree);
 
   
   /* for all branches in the tree, we should assert that the sum of the number of taxa on the left
