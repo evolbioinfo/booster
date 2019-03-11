@@ -71,6 +71,10 @@ typedef struct __Node {
 
          // Variables used for rapid transfer index calculation:
    int numleaves; // Number of leaves n subtree rooted at this node (assume rooted)
+   int d_lazy;    // The lazily updated transfer distance
+   int diff;      // For a node v, td(u,v) = d_lazy + Sum_{n \in Pv} diff_n
+                  // (Pv is the path from v to the root)
+   int d_min;     // Minimum transfer distance for subtree rooted here
 } Node;
 
 
