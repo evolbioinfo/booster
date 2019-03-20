@@ -453,6 +453,7 @@ void tbe(Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxn
       continue; /* some files maybe not containing trees */
     }
 
+    set_leaf_bijection(ref_tree, alt_tree);
     compute_transfer_indices_new(ref_tree, n, m, alt_tree,
                                  trans_ind_new[i_tree]);
 

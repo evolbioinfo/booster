@@ -43,6 +43,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #define MAX_COMMENTLENGTH	255	/* max length of a comment string in NHX format */
 
 /* TYPES */
+typedef struct __LeafArray LeafArray;
+
 /* Every node in our binary trees has several neighbours with indices  0, 1, 2.... We allow polytomies of any degree.
    An internal node with no multifurcation has 3 outgoing directions/neighbours.
 
@@ -60,21 +62,25 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
    The root or pseudo-root is ALWAYS assigned id 0 at beginning. May change later, upon rerooting.
    In any case, it is always pointed to by tree->node0. */
 
+typedef struct __Node Node;
 typedef struct __Node {
-	char* name;
+	char* name;       /* Only set if this is a leaf node. */
 	char* comment;		/* for further use: store any comment (e.g. from NHX format) */
-	int id;			/* unique id attributed to the node */
+	int id;			      /* unique id attributed to the node */
 	short int nneigh;	/* number of neighbours */
 	struct __Node** neigh;	/* neighbour nodes */
 	struct __Edge** br;	/* corresponding branches going from this node */
 	double mheight;	/* the height of a node is its min distance to a leaf */
 
          // Variables used for rapid transfer index calculation:
-   int numleaves; // Number of leaves n subtree rooted at this node (assume rooted)
-   int d_lazy;    // The lazily updated transfer distance
-   int diff;      // For a node v, td(u,v) = d_lazy + Sum_{n \in Pv} diff_n
-                  // (Pv is the path from v to the root)
-   int d_min;     // Minimum transfer distance for subtree rooted here
+   int subtreesize;   // Number of leaves n subtree rooted at this node (assume rooted)
+   int depth;         // The depth of the node (from the root)
+   int d_lazy;        // The lazily updated transfer distance
+   int diff;          // For a node v, td(u,v) = d_lazy + Sum_{n \in Pv} diff_n
+                      // (Pv is the path from v to the root)
+   int d_min;         // Minimum transfer distance for subtree rooted here
+   Node* other;       // The corresponding node in the other tree
+   LeafArray* light_leaves;   // The leaves in the light child.
 } Node;
 
 
@@ -90,6 +96,7 @@ typedef struct __Edge {
 	double branch_support;
 	int* subtype_counts[2];			/* first index is 0 for the left of the branch, 1 for its right side */
 	id_hash_table_t *hashtbl[2];		/* hashtables containing the ids of the taxa in each subtree */
+   
 						/* index 0 corresponds to the left of the branch, index 1 to its right.
 						   following our implementation, we only keep hashtbl[1] populated. */
 	short int had_zero_length; 		/* set at the moment when we read the tree, even though
@@ -111,7 +118,10 @@ typedef struct __Tree {
 	int next_avail_node_id;
 	int next_avail_edge_id;
 	int next_avail_taxon_id;
-	char** taxname_lookup_table;
+	char** taxname_lookup_table;   // maps taxa id [0,nb_taxa-1] to name
+
+         // Variables used for rapid transfer index calculation:
+	LeafArray* leaves;	           // array of Node pointers sorted by name
 } Tree;
 	
 
@@ -252,6 +262,12 @@ void update_node_heights_pre_doer(Node* target, Node* orig, Tree* t);
 void update_node_heights_post_alltree(Tree* tree);
 void update_node_heights_pre_alltree(Tree* tree);
 
+/* tree depth */
+/* Set the depth of all the nodes of the tree. */
+void update_node_depths_pre_doer(Node* target, Node* orig, Tree* t);
+void prepare_rapid_TI_pre(Tree* tree);
+
+
 /* topological depths */
 void update_all_topo_depths_from_hashtables(Tree* tree);
 int greatest_topo_depth(Tree* tree);
@@ -294,37 +310,141 @@ void free_edge(Edge* edge);
 void free_node(Node* node);
 void free_tree(Tree* tree);
 
+
+/* ____________________________________________________________ */
 /* Functions added for rapid computation of the Transfer Index. */
 
+/* LeafArray - - - - - - */
 /*
-Return an array of indices to leaves in the node list.
-
-** user responsible for the memory of the returned array.
+An array of Node* along with its length.
 */
-int* get_leaves(Tree* tree);
+typedef struct __LeafArray {
+  Node** a;      //The array of node pointers
+  int n;         //The length of the leaf array
+  int i;         //The left-most unused index
+} LeafArray;
+
+/* Allocate a LeafArray of this size.
+*/
+LeafArray* allocateLA(int n);
+
+/* Add a leaf to the leaf array.
+*/
+void addLeafLA(LeafArray* la, Node* u);
+
+/* Free the array in the LeafArray.
+*/
+void freeLA(LeafArray* la);
+
+/* Print the nodes in the LeafArray.
+*/
+void printLA(LeafArray* la);
+
+/* - - - - - - - - - - - - - */
+
+
+/* Do everything necessary to prepare for rapid Transfer Index (TI) computation.
+*/
+void prepare_rapid_TI(Tree* mytree);
+
+/* Set the .other members for the leaves of the trees.
+*/
+void set_leaf_bijection(Tree* tree1, Tree* tree2);
+
 
 /*
-Update the subtree size of the target node.
+Return all leaves coming from the light subtree of this node.
 
-** assumes binary rooted tree.
+@warning  user responsible for memory
+*/
+LeafArray* get_leaves_in_light_subtree(Node *u);
+
+
+/* Return all leaves coming from the light subtree of this node.
+
+@warning  user responsible for memory
+*/
+LeafArray* get_leaves_in_subtree(Node *u);
+
+
+/* Add a leave to the leafarray, otherwise recurse.
+*/
+void add_leaves_in_subtree(Node *u, LeafArray *leafarray);
+
+
+/* Return an array of indices to leaves in the node list.
+
+@warning  user responsible for the memory of the returned array.
+*/
+int* get_leaf_indices(const Tree* tree);
+
+/* Return a Node* array of all the leaves in the Tree.
+
+@warning  user responsible for the memory of the returned array.
+*/
+Node** get_leaves(const Tree* tree);
+
+/* Update the subtree size of the target node.
+
+@warning  assumes binary rooted tree.
 */
 void prepare_rapid_TI_doer(Node* target, Node* orig, Tree* t);
 
-/*
-Set subtree size for all nodes.
+/* Set subtree size for all nodes.
 
-** assumes binary rooted tree.
+@warning  assumes binary rooted tree.
 */
-void prepare_rapid_TI(Tree* tree);
+void prepare_rapid_TI_post(Tree* tree);
 
+
+/* Print all nodes of the tree in a post-order traversal.
+*/
+void print_nodes_post_order(Tree* t);
 void print_node_callback(Node* n, Node* m, Tree* t);
-void print_node(Node* n);
+void print_node(const Node* n);
+
+/* Print the nodes from the given Node* array.
+*/
+void print_nodes(Node **nodes, const int n);
+
+
+/* Return true if the given Node is the right child of its parent.
+
+@warning  assume u is not the root.
+*/
+bool is_right_child(const Node* u);
+
+
+/* Return true if the given pair of nodes represent the same taxon (possibly in
+different trees).
+*/
+bool same_taxon(const Node *l1, const Node *l2);
+
+/* Compare Nodes, using the string name of the node, so that leaves can be sorted.
+Return <0 if n1 should go before, 0 if equal, and 1 if n1 should go after n2.
+
+@warning  assume we are given leaves
+*/
+int compare_nodes(const void *l1, const void *l2);
+
+/* Compare Nodes, using the bitarray on the edge, so that leaves can be sorted.
+Return <0 if n1 should go before, 0 if equal, and 1 if n1 should go after n2.
+
+@warning  assume we are given leaves
+*/
+int compare_nodes_bitarray(const void *l1, const void *l2);
+
+
+
+
+/* - - - Hashmap for mapping nodes for ref_tree to nodes of alt_tree - - - - */
 
 /*
-Return true if the given Node is the right child of its parent.
+Build a hashmap mapping leaf name to leaves of tree2.
 
-** assume u is not the root.
+@warning  assumes the leaves have the same names as leaves in tree2
 */
-bool is_right_child(Node* u);
+map_t map_tnames_to_leaves(LeafArray* leaves1, LeafArray* leaves2);
+void free_leaf_hashmap(map_t leafmap);
 
 #endif /* _TREE_H_ */

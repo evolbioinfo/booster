@@ -280,6 +280,7 @@ Tree* new_tree(int nb_taxa, const char* name) {
 
 	t->a_nodes = (Node**) calloc(2*nb_taxa-1, sizeof(Node*));	/* array of node pointers, enough for a rooted tree */
 	t->a_edges = (Edge**) calloc(2*nb_taxa-2, sizeof(Edge*));	/* array of edge pointers, enough for a rooted tree */
+  t->leaves = allocateLA(nb_taxa);                          /* array of node pointers, enough for the leaves */
 	
 	t->node0 = new_node(name, t, 1);	/* this first node _is_ a leaf */
 
@@ -1320,6 +1321,7 @@ Tree* parse_nh_string(char* in_str) {
 	/* in a rooted binary tree with n taxa, (2n-2) branches and (2n-1) nodes in total.
 	  this is the maximum we can have. multifurcations will reduce the number of nodes and branches, so set the data structures to the max size */
 	t->nb_taxa = n_otu;
+	t->leaves = allocateLA(n_otu);
 
 	t->a_nodes = (Node**) calloc(2*n_otu-1, sizeof(Node*));
 	t->nb_nodes = 1; /* for the moment we only have the node0 node. */
@@ -1377,7 +1379,8 @@ Tree *complete_parse_nh(char* big_string, char*** taxname_lookup_table) {
  	Tree* mytree = parse_nh_string(big_string); 
 	if(mytree == NULL) { fprintf(stderr,"Not a syntactically correct NH tree.\n"); return NULL; }
 
-	if(*taxname_lookup_table == NULL)  *taxname_lookup_table = build_taxname_lookup_table(mytree);
+	if(*taxname_lookup_table == NULL)
+	  *taxname_lookup_table = build_taxname_lookup_table(mytree);
 	mytree->taxname_lookup_table = *taxname_lookup_table;
 
 	update_bootstrap_supports_from_node_names(mytree);
@@ -1385,13 +1388,13 @@ Tree *complete_parse_nh(char* big_string, char*** taxname_lookup_table) {
 	update_subtype_counts_pre_alltree(mytree);
 	update_branch_subtype_counts_from_nodes(mytree); */
 
+  // **TODO(kms):     _____________________________________________
+  // Will want to comment these out (quadratic time operations)?
 	update_hashtables_post_alltree(mytree);
 	update_hashtables_pre_alltree(mytree);
 
 	update_node_heights_post_alltree(mytree);
 	update_node_heights_pre_alltree(mytree);
-
-	prepare_rapid_TI(mytree);   //Set up Node variables for rapid TI calculation.
 
 	/* for all branches in the tree, we should assert that the sum of the number of taxa on the left
 	   and on the right of the branch is equal to tree->nb_taxa */
@@ -1413,9 +1416,12 @@ Tree *complete_parse_nh(char* big_string, char*** taxname_lookup_table) {
 	/* topological depths of branches */
 	update_all_topo_depths_from_hashtables(mytree);
 
+  // **TODO end       _____________________________________________
+
+  prepare_rapid_TI(mytree);  //Set up for rapid Transfer Index computation.
+
 	return mytree;
 }
-
 
 
 
@@ -1636,9 +1642,21 @@ void update_node_heights_pre_doer(Node* target, Node* orig, Tree* t) {
 	/* when we enter this function, orig already has its mheight set to its final value. Update the target if its current mheight is larger
 	   than the one we get taking into account the min path to a leave from target via origin */
 	if (!orig) return; /* nothing to do on the root for this preorder: value is already correctly set by the postorder */
+
 	int dir_target_to_orig = dir_a_to_b(target, orig);
 	double alt_height = orig->mheight + (target->br[dir_target_to_orig]->had_zero_length ? 0.0 : target->br[dir_target_to_orig]->brlen);
 	if (alt_height < target->mheight) target->mheight = alt_height;
+} /* end of update_node_heights_pre_doer */
+
+/*
+Set the depth of this node based on its parent's depth.
+*/
+void update_node_depths_pre_doer(Node* target, Node* orig, Tree* t) {
+	if(!orig) { //root
+    target->depth = 0;
+    return;
+  }
+  target->depth = orig->depth+1;
 } /* end of update_node_heights_pre_doer */
 
 
@@ -1651,6 +1669,12 @@ void update_node_heights_pre_alltree(Tree* tree) {
 	pre_order_traversal(tree, &update_node_heights_pre_doer);
 } /* end of update_node_heights_pre_alltree */
 
+/*
+Set the depth of all the nodes of the tree.
+*/
+void prepare_rapid_TI_pre(Tree* tree) {
+	pre_order_traversal(tree, &update_node_depths_pre_doer);
+} /* end of update_node_depths_pre_alltree */
 
 
 /* working with topological depths: number of taxa on the lightest side of the branch */
@@ -1971,15 +1995,19 @@ void free_node(Node* node) {
 void free_tree(Tree* tree) {
 	if (tree == NULL) return;
 	int i;
-	for (i=0; i < tree->nb_nodes; i++) free_node(tree->a_nodes[i]);
+	for (i=0; i < tree->nb_nodes; i++)
+  {
+    freeLA(tree->a_nodes[i]->light_leaves);
+    free_node(tree->a_nodes[i]);
+  }
 	for (i=0; i < tree->nb_edges; i++) free_edge(tree->a_edges[i]);
 	for (i=0; i < tree->nb_taxa; i++) free(tree->taxa_names[i]);
 
 	free(tree->taxa_names);
 	free(tree->a_nodes);
 	free(tree->a_edges);
+  freeLA(tree->leaves);
 	free(tree);
-
 }
 
 Tree * gen_rand_tree(int nbr_taxa, char **taxa_names){
@@ -2064,45 +2092,201 @@ Tree * gen_rand_tree(int nbr_taxa, char **taxa_names){
 
 
 
+/* ____________________________________________________________ */
 /* Functions added for rapid computation of the Transfer Index. */
+
+
+/*
+Allocate a LeafArray of this size.
+*/
+LeafArray* allocateLA(int n) {
+  LeafArray *la = malloc(sizeof(LeafArray));
+  la->n = n;
+  la->a = calloc(n, sizeof(Node*));
+  la->i = 0;
+  return la;
+}
+
+
+/*
+Add a leaf to the leaf array.
+*/
+void addLeafLA(LeafArray* la, Node* u) {
+  if(la->n == la->i)
+  {
+	  fprintf(stderr, "Fatal error: adding too many nodes to LeafArray.\n");
+	  Generic_Exit(__FILE__,__LINE__,__FUNCTION__,EXIT_FAILURE);
+  }
+
+  la->a[(la->i)++] = u;
+}
+
+/*
+Free the array in the  LeafArray.
+*/
+void freeLA(LeafArray *la) {
+  free(la->a);
+  free(la);
+}
+
+/*
+Print the nodes in the LeafArray.
+*/
+void printLA(LeafArray *la) {
+  print_nodes(la->a, la->i);
+}
+
+/*
+Sort by the taxa names.
+*/
+void sortLA(LeafArray *la) {
+  qsort(la->a, la->i, sizeof(Node*), compare_nodes);
+}
+
+
+/* Do everything necessary to prepare for rapid Transfer Index (TI) computation.
+*/
+void prepare_rapid_TI(Tree* mytree) {
+	prepare_rapid_TI_pre(mytree);  //Node depths for rapid Transfer Index (TI).
+	prepare_rapid_TI_post(mytree); //Node variables for rapid Transfer Index (TI).
+  sortLA(mytree->leaves);
+}
+
+
+/* Set the .other members for the leaves of the trees.
+*/
+void set_leaf_bijection(Tree* tree1, Tree* tree2) {
+  for(int i=0; i < tree1->leaves->i; i++)
+  {
+    tree1->leaves->a[i]->other = tree2->leaves->a[i];
+    tree2->leaves->a[i]->other = tree1->leaves->a[i];
+  }
+}
+
+
+/*
+Return all leaves coming from the light subtree of this node.
+
+@warning  user responsible for memory (use freeLA())
+*/
+LeafArray* get_leaves_in_light_subtree(Node *u)
+{
+  if(u->nneigh == 1)  //leaf
+    return allocateLA(0);
+
+  Node *leftchild, *rightchild;
+  if(u->depth == 0)   //root
+  {
+    leftchild = u->neigh[0];
+    rightchild = u->neigh[1];
+  }
+  else
+  {
+    leftchild = u->neigh[1];
+    rightchild = u->neigh[2];
+  }
+
+  if(leftchild->subtreesize >= rightchild->subtreesize) //came from left
+    return get_leaves_in_subtree(rightchild);
+
+  return get_leaves_in_subtree(leftchild);
+}
+
+
+/*
+Return a list of Node pointers to the leaves of this subtree.
+
+@warning  user responsible for memory
+*/
+LeafArray* get_leaves_in_subtree(Node *u)
+{
+  LeafArray *leafarray = allocateLA(u->subtreesize);
+  
+  add_leaves_in_subtree(u, leafarray);
+  return leafarray;
+}
+
+/*
+Add a leave to the leafarray, otherwise recurse.
+*/
+void add_leaves_in_subtree(Node *u, LeafArray *leafarray)
+{
+  if(u->nneigh == 1)  //leaf
+  {
+    addLeafLA(leafarray, u);
+    return;
+  }
+  if(u->depth == 0)   //root
+  {
+    add_leaves_in_subtree(u->neigh[0], leafarray);
+    add_leaves_in_subtree(u->neigh[0], leafarray);
+  }
+  else
+  {
+    add_leaves_in_subtree(u->neigh[1], leafarray);
+    add_leaves_in_subtree(u->neigh[2], leafarray);
+  }
+}
+
 
 /*
 Return an array of indices to leaves in the node list.
 
-** user responsible for the memory of the returned array.
+@warning  user responsible for the memory of the returned array.
 */
-int* get_leaves(Tree* tree) {
-	int n = tree->nb_nodes;
-	int count = 0;
-	int *leaves = calloc(tree->nb_taxa, sizeof(int));
+int* get_leaf_indices(const Tree* tree) {
+  int n = tree->nb_nodes;
+  int count = 0;
+  int *leaves = calloc(tree->nb_taxa, sizeof(int));
+  
+  for (int i = 0; i < n; i++)
+    if(tree->a_nodes[i]->nneigh == 1)
+      leaves[count++] = i;
+  
+  return leaves;
+}
 
-	for (int i = 0; i < n; i++)
-	  if(tree->a_nodes[i]->nneigh == 1)
-	    leaves[count++] = i;
+/*
+Return a Node* array of all the leaves in the Tree.
 
-	return leaves;
+@warning  user responsible for the memory of the returned array.
+*/
+Node** get_leaves(const Tree* tree) {
+  int n = tree->nb_nodes;
+  int count = 0;
+  Node **leaves = calloc(tree->nb_taxa, sizeof(Node*));
+
+  for(int i = 0; i < n; i++)
+  if(tree->a_nodes[i]->nneigh == 1)
+  leaves[count++] = tree->a_nodes[i];
+
+  return leaves;
 }
 
 /*
 Set up all the Node variables associated with rapid Transfer Index calculation.
 
-** assumes binary rooted tree.
+@warning  assumes binary rooted tree.
 */
 void prepare_rapid_TI_doer(Node* target, Node* orig, Tree* t) {
-    // Set numleaves:
-  if(target->nneigh == 1)   //leaf
-    target->numleaves = 1;
-    else if(target->nneigh == 2) //root
-      target->numleaves = target->neigh[0]->numleaves +
-                          target->neigh[1]->numleaves;
-    else
-      target->numleaves = target->neigh[1]->numleaves +
-                          target->neigh[2]->numleaves;
+    // Set subtreesize:
+  if(target->nneigh == 1)      //leaf
+  {
+    target->subtreesize = 1;
+    addLeafLA(t->leaves, target);
+  }
+  else if(target->nneigh == 2) //root
+    target->subtreesize = target->neigh[0]->subtreesize +
+                          target->neigh[1]->subtreesize;
+  else
+    target->subtreesize = target->neigh[1]->subtreesize +
+                          target->neigh[2]->subtreesize;
 
     // Set the rest:
   target->diff = 0;
   target->d_min = 1;
-  target->d_lazy = target->numleaves;
+  target->d_lazy = target->subtreesize;
+  target->light_leaves = get_leaves_in_light_subtree(target);
 }
 
 
@@ -2110,30 +2294,111 @@ void prepare_rapid_TI_doer(Node* target, Node* orig, Tree* t) {
 Set up Node variables associated with rapid Transfer Index calculation for
 all Nodes in the tree.
 
-** assumes binary rooted tree.
+@warning  assumes binary rooted tree.
 */
-void prepare_rapid_TI(Tree* tree) {
-	post_order_traversal(tree, &prepare_rapid_TI_doer);
+void prepare_rapid_TI_post(Tree* tree) {
+  post_order_traversal(tree, &prepare_rapid_TI_doer);
 }
 
 
+/*
+Print all nodes of the tree in a post-order traversal.
+*/
+void print_nodes_post_order(Tree* t) {
+  post_order_traversal(t, &print_node_callback);
+}
 void print_node_callback(Node* n, Node* m, Tree* t) {
-	print_node(n);
+  print_node(n);
 }
 
-void print_node(Node* n) {
-	fprintf(stderr, "node id: %i name: %s size: %i\n", n->id, n->name,
-	        n->numleaves);
+void print_node(const Node* n) {
+  char *name = "----";
+  if(n->nneigh == 1)  //not a leaf
+    name = n->name;
+  fprintf(stderr, "node id: %i name: %s |L|: %i depth: %i\n", n->id, name,
+          n->subtreesize, n->depth);
 }
+
+/*
+Print the nodes from the given Node* array.
+*/
+void print_nodes(Node **nodes, const int n)
+{
+  fprintf(stderr, "Nodes:\n");
+  for(int i=0; i < n; i++)
+    print_node(nodes[i]);
+}
+
 
 /*
 Return true if the given Node is the right child of its parent.
 
-** assume u is not the root.
+@warning  assume u is not the root.
 */
-bool is_right_child(Node* u)
-{
-	Node* p = u->neigh[0];               //parent
-  bool parentisroot = p->nneigh == 2;
-  return ((parentisroot && u == p->neigh[1]) || u == p->neigh[2]);
+bool is_right_child(const Node* u) {
+  Node* p = u->neigh[0];               //parent
+  bool parentisroot = p->depth == 0;
+
+  return ((parentisroot && u == p->neigh[1]) || (!parentisroot && u == p->neigh[2]));
+}
+
+/*
+Return true if the given pair of nodes represent the same taxon (possibly in
+different trees).
+*/
+bool same_taxon(const Node *l1, const Node *l2) {
+  return equal_id_hashtables(l1->br[0]->hashtbl[1], l2->br[0]->hashtbl[1]);
+}
+
+
+/*
+Compare Nodes, using the string name of the node, so that leaves can be sorted.
+Return <0 if n1 should go before, 0 if equal, and 1 if n1 should go after n2.
+
+@warning  assume we are given leaves
+*/
+int compare_nodes(const void *l1, const void *l2) {
+  return strcmp((*(Node**)l1)->name, (*(Node**)l2)->name);
+}
+
+/*
+Compare Nodes, using the bitarray on the edge, so that leaves can be sorted.
+Return <0 if n1 should go before, 0 if equal, and 1 if n1 should go after n2.
+
+@warning  assume we are given leaves
+*/
+int compare_nodes_bitarray(const void *l1, const void *l2) {
+    //Test the relationship between succesive longs:
+  for(int chunk = 0; chunk < nbchunks_bitarray; chunk++) {
+    unsigned long chunk1 = (*(Node**)l1)->br[0]->hashtbl[1]->bitarray[chunk];
+    unsigned long chunk2 = (*(Node**)l2)->br[0]->hashtbl[1]->bitarray[chunk];
+    if(chunk1 < chunk2)
+      return -1;
+    else if(chunk1 > chunk2)
+      return 1;
+  }
+  
+  return 0;   //All the chunks are equal.
+}
+
+
+
+/* - - - Hashmap for mapping nodes for ref_tree to nodes of alt_tree - - - - */
+
+/*
+Build a hashmap mapping leaf name to leaves of tree2.
+
+@warning  assumes the leaves have the same names as leaves in tree2
+*/
+map_t map_tnames_to_leaves(LeafArray* leaves1, LeafArray* leaves2) {
+  map_t h = hashmap_new();
+
+  for(int i=0; i < leaves1->i; i++)
+    hashmap_put(h, leaves1->a[i]->name, leaves2->a[i]);
+  return h;
+}
+
+void free_leaf_hashmap(map_t leafmap) {
+  hashmap_iterate(leafmap, &free_hashmap_data, NULL);
+  hashmap_free(leafmap);
 }
