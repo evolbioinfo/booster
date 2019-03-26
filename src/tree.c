@@ -2315,8 +2315,20 @@ void print_node(const Node* n) {
   char *name = "----";
   if(n->nneigh == 1)  //not a leaf
     name = n->name;
-  fprintf(stderr, "node id: %i name: %s |L|: %i depth: %i\n", n->id, name,
-          n->subtreesize, n->depth);
+  fprintf(stderr, "node id: %i name: %s |L|: %i depth: %i\n", n->id,
+          name, n->subtreesize, n->depth);
+}
+void print_node_TI(const Node* n) {
+  char *name = "----";
+  if(n->nneigh == 1)  //not a leaf
+    name = n->name;
+  fprintf(stderr, "node id: %i name: %s |L|: %i depth: %i TI: %i\n", n->id,
+          name, n->subtreesize, n->depth, n->transfer_index);
+}
+
+void print_node_TIvars(const Node* n) {
+  fprintf(stderr, "d_min: %i d_lazy: %i diff: %i\n", n->d_min, n->d_lazy,
+          n->diff);
 }
 
 /*
@@ -2327,6 +2339,28 @@ void print_nodes(Node **nodes, const int n)
   fprintf(stderr, "Nodes:\n");
   for(int i=0; i < n; i++)
     print_node(nodes[i]);
+}
+/*
+Print the nodes from the given Node* array (with the transfer index).
+*/
+void print_nodes_TI(Node **nodes, const int n)
+{
+  fprintf(stderr, "Nodes:\n");
+  for(int i=0; i < n; i++)
+    print_node_TI(nodes[i]);
+}
+
+/*
+Print the TI variables for the given nodes from alt_tree.
+*/
+void print_nodes_TIvars(Node **nodes, const int n)
+{
+  fprintf(stderr, "Nodes:\n");
+  for(int i=0; i < n; i++)
+  {
+    print_node(nodes[i]);
+    fprintf(stderr, "\t"); print_node_TIvars(nodes[i]);
+  }
 }
 
 

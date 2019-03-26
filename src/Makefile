@@ -3,7 +3,8 @@ GIT_VERSION := $(shell git describe --abbrev=10 --dirty --always --tags)
 
 UNAME := $(shell uname)
 
-CFLAGS = -Wall -g -O3 -DVERSION=\"$(GIT_VERSION)\"
+#CFLAGS = -Wall -g -O3 -DVERSION=\"$(GIT_VERSION)\"
+CFLAGS = -Wall -g -DVERSION=\"$(GIT_VERSION)\"
 CFLAGS_OMP = -Wall -g -fopenmp
 
 # Compiler: gcc

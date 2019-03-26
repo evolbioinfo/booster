@@ -72,15 +72,18 @@ typedef struct __Node {
 	struct __Edge** br;	/* corresponding branches going from this node */
 	double mheight;	/* the height of a node is its min distance to a leaf */
 
-         // Variables used for rapid transfer index calculation:
-   int subtreesize;   // Number of leaves n subtree rooted at this node (assume rooted)
+         // Variables used for rapid transfer index calculation on alt_tree:
+   int subtreesize;   // Number of leaves in subtree rooted at this node (assume rooted)
    int depth;         // The depth of the node (from the root)
    int d_lazy;        // The lazily updated transfer distance
    int diff;          // For a node v, td(u,v) = d_lazy + Sum_{n \in Pv} diff_n
                       // (Pv is the path from v to the root)
    int d_min;         // Minimum transfer distance for subtree rooted here
-   Node* other;       // The corresponding node in the other tree
+   Node* other;       // The corresponding leaf in the other tree
    LeafArray* light_leaves;   // The leaves in the light child.
+
+         // Variables used for rapid transfer index calculation on ref_tree:
+   int transfer_index;// The (rooted) transfer index for this node.
 } Node;
 
 
@@ -402,10 +405,19 @@ void prepare_rapid_TI_post(Tree* tree);
 void print_nodes_post_order(Tree* t);
 void print_node_callback(Node* n, Node* m, Tree* t);
 void print_node(const Node* n);
+/* Print TI variables for a node in alt_tree.
+*/
+void print_node_TIvars(const Node* n);
 
 /* Print the nodes from the given Node* array.
 */
 void print_nodes(Node **nodes, const int n);
+/* Print the nodes from the given Node* array (with the transfer index).
+*/
+void print_nodes_TI(Node **nodes, const int n);
+/* Print the TI variables for the given nodes from alt_tree.
+*/
+void print_nodes_TIvars(Node **nodes, const int n);
 
 
 /* Return true if the given Node is the right child of its parent.
