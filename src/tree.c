@@ -2282,6 +2282,9 @@ void prepare_rapid_TI_doer(Node* target, Node* orig, Tree* t) {
     target->subtreesize = target->neigh[1]->subtreesize +
                           target->neigh[2]->subtreesize;
 
+  if(target->nneigh != 2)
+    target->sibling = get_sibling(target);
+
     // Set the rest:
   target->diff = 0;
   target->d_min = 1;
@@ -2415,9 +2418,30 @@ int compare_nodes_bitarray(const void *l1, const void *l2) {
   return 0;   //All the chunks are equal.
 }
 
+/* Return the sibling to this Node.
+
+@warning  assume the node is not the root
+*/
+Node* get_sibling(Node* u)
+{
+  Node *parent = u->neigh[0];
+  Node *child1 = parent->neigh[1];
+  Node *child2;
+  if(parent->depth == 0)   // is root
+    child2 = parent->neigh[0];
+  else
+    child2 = parent->neigh[2];
+
+  if(child1 == u)
+    return child2;
+  return child1;
+}
+
 
 
 /* - - - Hashmap for mapping nodes for ref_tree to nodes of alt_tree - - - - */
+
+// UNUSED!!!
 
 /*
 Build a hashmap mapping leaf name to leaves of tree2.

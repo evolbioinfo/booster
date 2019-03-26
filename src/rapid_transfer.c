@@ -46,8 +46,8 @@ void compute_transfer_indices_new(Tree *ref_tree, const int n,
     reset_heavy_path(u);           //Reset TI associated variables on alt_tree.
   }
 
-fprintf(stderr, "||||||| RESULTS: |||||||\n");
-print_nodes_TI(ref_tree->a_nodes, ref_tree->nb_nodes);
+//fprintf(stderr, "||||||| RESULTS: |||||||\n");
+//print_nodes_TI(ref_tree->a_nodes, ref_tree->nb_nodes);
 }
 
 
@@ -132,9 +132,9 @@ void add_leaf(Node *leaf)
     path[i]->d_lazy += path[i]->diff - 1;
     if(i != 0)                               //Not the leaf
     {
-      //fprintf(stderr, "         sib "); print_node(get_sibling(path[i-1]));
-      path[i-1]->diff += path[i]->diff;                //Push difference down
-      get_sibling(path[i-1])->diff += path[i]->diff+1; //the node off the path.
+      //fprintf(stderr, "         sib "); print_node(path[i-1]->sibling);
+      path[i-1]->diff += path[i]->diff;              //Push difference down
+      path[i-1]->sibling->diff += path[i]->diff+1;   //the node off the path.
     }
     path[i]->diff = 0;
     //fprintf(stderr, "         "); print_node_TIvars(path[i]);
@@ -168,7 +168,7 @@ void reset_leaf(Node *leaf)
 
     if(n->depth != 0)   //Not the root
     {
-      get_sibling(n)->diff = 0;
+      n->sibling->diff = 0;
       n = n->neigh[0];
     }
     else
@@ -184,7 +184,7 @@ void update_dmin_on_path(Node** path, int pathlength)
   path[0]->d_min = path[0]->d_lazy;
   for(int i = 1; i < pathlength; i++)
   {
-    Node *sib = get_sibling(path[i-1]); //The node off the path
+    Node *sib = path[i-1]->sibling;  //The node off the path
     path[i]->d_min = min3(path[i-1]->d_min, sib->d_min+sib->diff,
                           path[i]->d_lazy);
     //fprintf(stderr, "up: "); print_node(path[i]);
@@ -217,25 +217,6 @@ int min(int i1, int i2)
 int min3(int i1, int i2, int i3)
 {
   return min(min(i1, i2), i3);
-}
-
-/* Return the sibling to this Node.
-
-@warning  assume the node is not the root
-*/
-Node* get_sibling(Node* u)
-{
-  Node *parent = u->neigh[0];
-  Node *child1 = parent->neigh[1];
-  Node *child2;
-  if(parent->depth == 0)   // is root
-    child2 = parent->neigh[0];
-  else
-    child2 = parent->neigh[2];
-
-  if(child1 == u)
-    return child2;
-  return child1;
 }
 
 /*

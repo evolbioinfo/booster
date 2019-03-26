@@ -50,12 +50,6 @@ void update_dmin_on_path(Node** path, int pathlength);
 
 
 
-/* Return the sibling to this Node.
-
-@warning  assume the node is not the root
-*/
-Node* get_sibling(Node* u);
-
 /* Die if the given node is not a leaf.
 */
 void assert_is_leaf(Node* leaf);

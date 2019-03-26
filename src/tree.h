@@ -80,6 +80,7 @@ typedef struct __Node {
                       // (Pv is the path from v to the root)
    int d_min;         // Minimum transfer distance for subtree rooted here
    Node* other;       // The corresponding leaf in the other tree
+   Node* sibling;     // The sibling of this node in a rooted binary tree
    LeafArray* light_leaves;   // The leaves in the light child.
 
          // Variables used for rapid transfer index calculation on ref_tree:
@@ -447,9 +448,16 @@ Return <0 if n1 should go before, 0 if equal, and 1 if n1 should go after n2.
 int compare_nodes_bitarray(const void *l1, const void *l2);
 
 
+/* Return the sibling to this Node.
+
+@warning  assume the node is not the root
+*/
+Node* get_sibling(Node* u);
 
 
 /* - - - Hashmap for mapping nodes for ref_tree to nodes of alt_tree - - - - */
+
+// UNUSED!!!
 
 /*
 Build a hashmap mapping leaf name to leaves of tree2.
