@@ -40,7 +40,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
    (tree structures, tbe algorithm)
 */
 
-void tbe(Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxname_lookup_table, FILE *stat_file, int num_trees, int quiet, double dist_cutoff,int count_per_branch);
+void tbe(bool rapid, Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxname_lookup_table, FILE *stat_file, int num_trees, int quiet, double dist_cutoff,int count_per_branch);
 void fbp(Tree *ref_tree, char **alt_tree_strings,char** taxname_lookup_table, int num_trees, int quiet);
 int* species_to_move(Edge* re, Edge* be, int dist, int nb_taxa);
 void compute_transfer_indices(Tree *ref_tree, const int n, const int m,
@@ -62,7 +62,7 @@ void usage(FILE * out,char *name){
   fprintf(out,"      -S, --stat-file        : Prints output statistics for each branch in the given output file (optional)\n");
   fprintf(out,"      -c, --count-per-branch : Prints individual taxa moves for each branches in the log file (only with -S & -a tbe)\n");
   fprintf(out,"      -d, --dist-cutoff      : Distance cutoff to consider a branch for taxa transfer index computation (-a tbe only, default 0.3)\n");
-  fprintf(out,"      -a, --algo             : tbe or fbp (default tbe)\n");
+  fprintf(out,"      -a, --algo             : rtbe or tbe or fbp (default rtbe)\n");
   fprintf(out,"      -q, --quiet            : Does not print progress messages during analysis\n");
   fprintf(out,"      -v, --version          : Prints version (optional)\n");
   fprintf(out,"      -h, --help             : Prints this help\n");
@@ -160,7 +160,7 @@ int main (int argc, char* argv[]) {
   Tree *ref_raw_tree = NULL; /* For raw support at edges : id|avgdist|depth */
   char **alt_tree_strings;
 
-  char *algo = "tbe";
+  char *algo = "rtbe";
   
   int quiet = 0;
   
@@ -209,8 +209,8 @@ int main (int argc, char* argv[]) {
     }
   }
 
-  if(strcmp(algo,"tbe") && strcmp(algo,"fbp")){
-    fprintf(stderr,"Algo option must be one of \"tbe\" or \"fbp\"\n");
+  if(strcmp(algo,"tbe") && strcmp(algo,"fbp") && strcmp(algo, "rtbe")){
+    fprintf(stderr,"Algo option must be one of \"rtbe\" or \"tbe\" or \"fbp\"\n");
     Generic_Exit(__FILE__,__LINE__,__FUNCTION__,EXIT_FAILURE);
   }
   
@@ -321,8 +321,8 @@ int main (int argc, char* argv[]) {
 
   if(!quiet)  fprintf(stderr,"Num trees: %d\n",num_trees);
 
-  if(!strcmp(algo,"tbe")){
-    tbe(ref_tree, ref_raw_tree, alt_tree_strings, taxname_lookup_table, stat_file, num_trees, quiet, dist_cutoff, count_per_branch);
+  if(!strcmp(algo,"tbe") || !strcmp(algo, "rtbe")){
+    tbe(!strcmp(algo, "rtbe"), ref_tree, ref_raw_tree, alt_tree_strings, taxname_lookup_table, stat_file, num_trees, quiet, dist_cutoff, count_per_branch);
   }else{
     fbp(ref_tree, alt_tree_strings, taxname_lookup_table, num_trees, quiet);
   }
@@ -410,7 +410,9 @@ void fbp(Tree *ref_tree, char **alt_tree_strings,char** taxname_lookup_table, in
   free_bitset_hashmap(hm);
 }
 
-void tbe(Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxname_lookup_table, FILE *stat_file, int num_trees, int quiet, double dist_cutoff, int count_per_branch){
+void tbe(bool rapid, Tree *ref_tree, Tree *ref_raw_tree,
+         char **alt_tree_strings, char** taxname_lookup_table, FILE *stat_file,
+         int num_trees, int quiet, double dist_cutoff, int count_per_branch){
   int i,j;
   int m = ref_tree->nb_edges;
   int n = ref_tree->nb_taxa;
@@ -453,14 +455,16 @@ void tbe(Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxn
       continue; /* some files maybe not containing trees */
     }
 
-    set_leaf_bijection(ref_tree, alt_tree);
-    compute_transfer_indices_new(ref_tree, n, m, alt_tree,
-                                 trans_ind_new[i_tree]);
-
-    compute_transfer_indices(ref_tree, n, m, alt_tree, trans_ind_tmp[i_tree],
-                             max_branches_boot, moved_species_counts,
-                             moved_species_counts_per_branch,
-                             count_per_branch, dist_cutoff);
+    if (rapid){
+      set_leaf_bijection(ref_tree, alt_tree);
+      compute_transfer_indices_new(ref_tree, n, m, alt_tree,
+                                   trans_ind_new[i_tree]);
+    }
+    else
+      compute_transfer_indices(ref_tree, n, m, alt_tree, trans_ind_tmp[i_tree],
+                               max_branches_boot, moved_species_counts,
+                               moved_species_counts_per_branch,
+                               count_per_branch, dist_cutoff);
   }
 
   #pragma omp barrier
