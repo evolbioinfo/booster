@@ -3,9 +3,10 @@ GIT_VERSION := $(shell git describe --abbrev=10 --dirty --always --tags)
 
 UNAME := $(shell uname)
 
-#CFLAGS = -Wall -g -O3 -DVERSION=\"$(GIT_VERSION)\"
-CFLAGS = -Wall -g -DVERSION=\"$(GIT_VERSION)\"
-CFLAGS_OMP = -Wall -g -fopenmp
+#CFLAGS = -Wall -g -DVERSION=\"$(GIT_VERSION)\" #-DDEBUG 
+#CFLAGS_OMP = -Wall -g -fopenmp
+CFLAGS = -Wall -O3 -DVERSION=\"$(GIT_VERSION)\"
+CFLAGS_OMP = -Wall -03 -fopenmp
 
 # Compiler: gcc
 ifeq ($(cross),win32)
@@ -30,7 +31,7 @@ ifeq ($(UNAME),Darwin)
 endif
 
 LIBS = -lm
-OBJS = hashtables_bfields.o  tree.o stats.o prng.o hashmap.o version.o sort.o io.o tree_utils.o bitset_index.o rapid_transfer.o
+OBJS = hashtables_bfields.o  tree.o stats.o prng.o hashmap.o version.o sort.o io.o tree_utils.o bitset_index.o rapid_transfer.o debug.o kludge.o
 
 # default target
 ALL = booster

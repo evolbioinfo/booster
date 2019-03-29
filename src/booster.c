@@ -49,6 +49,7 @@ void compute_transfer_indices(Tree *ref_tree, const int n, const int m,
                               double *moved_species_counts,
                               int **moved_species_counts_per_branch,
                               int count_per_branch, const double dist_cutoff);
+void assert_equal_TI(int *ti_new, int *ti_old, Tree *ref_tree);
 
 void usage(FILE * out,char *name){
   fprintf(out,"Usage: ");
@@ -413,7 +414,6 @@ void fbp(Tree *ref_tree, char **alt_tree_strings,char** taxname_lookup_table, in
 void tbe(bool rapid, Tree *ref_tree, Tree *ref_raw_tree,
          char **alt_tree_strings, char** taxname_lookup_table, FILE *stat_file,
          int num_trees, int quiet, double dist_cutoff, int count_per_branch){
-  int i,j;
   int m = ref_tree->nb_edges;
   int n = ref_tree->nb_taxa;
   int i_tree;
@@ -428,7 +428,7 @@ void tbe(bool rapid, Tree *ref_tree, Tree *ref_raw_tree,
 
   if(stat_file != NULL && count_per_branch){
     moved_species_counts_per_branch = (int**) calloc(m,sizeof(int*));
-    for(i=0;i<m;i++){
+    for(int i=0;i<m;i++){
       moved_species_counts_per_branch[i]  = (int*) calloc(n,sizeof(int));
     }
   }
@@ -441,7 +441,7 @@ void tbe(bool rapid, Tree *ref_tree, Tree *ref_raw_tree,
   moved_species_counts = (double*) calloc(m,sizeof(double)); /* array of average branch rate in which each taxon moves */
 
   Tree *alt_tree;
-#pragma omp parallel for private(i, alt_tree) shared(max_branches_boot, ref_tree, alt_tree_strings, trans_ind_tmp, trans_ind_new, taxname_lookup_table, n, m, moved_species_counts, moved_species_counts_per_branch) schedule(dynamic)
+#pragma omp parallel for private(alt_tree) shared(max_branches_boot, ref_tree, alt_tree_strings, trans_ind_tmp, trans_ind_new, taxname_lookup_table, n, m, moved_species_counts, moved_species_counts_per_branch) schedule(dynamic)
   for(i_tree=0; i_tree< num_trees; i_tree++){
     if(!quiet) fprintf(stderr,"New bootstrap tree : %d\n",i_tree);
     alt_tree = complete_parse_nh(alt_tree_strings[i_tree], &taxname_lookup_table);
@@ -455,23 +455,30 @@ void tbe(bool rapid, Tree *ref_tree, Tree *ref_raw_tree,
       continue; /* some files maybe not containing trees */
     }
 
-    if (rapid){
-      set_leaf_bijection(ref_tree, alt_tree);
+    if (rapid)
       compute_transfer_indices_new(ref_tree, n, m, alt_tree,
-                                   trans_ind_new[i_tree]);
-    }
+                                   trans_ind_tmp[i_tree]);
     else
       compute_transfer_indices(ref_tree, n, m, alt_tree, trans_ind_tmp[i_tree],
                                max_branches_boot, moved_species_counts,
                                moved_species_counts_per_branch,
                                count_per_branch, dist_cutoff);
+
+    //compute_transfer_indices_new(ref_tree, n, m, alt_tree,
+    //                             trans_ind_new[i_tree]);
+    //compute_transfer_indices(ref_tree, n, m, alt_tree, trans_ind_tmp[i_tree],
+    //                         max_branches_boot, moved_species_counts,
+    //                         moved_species_counts_per_branch,
+    //                         count_per_branch, dist_cutoff);
+    //assert_equal_TI(trans_ind_new[i_tree], trans_ind_tmp[i_tree], ref_tree);
+
   }
 
   #pragma omp barrier
 
   int *trans_ind = (int*) calloc(m,sizeof(int)); //array of index sums, one
                                                  //per branch. Initialized to 0.
-  for (i = 0; i < m; i++){
+  for (int i = 0; i < m; i++){
     for(i_tree=0; i_tree < num_trees; i_tree++){
       trans_ind[i] += trans_ind_tmp[i_tree][i];
     }
@@ -485,7 +492,7 @@ void tbe(bool rapid, Tree *ref_tree, Tree *ref_raw_tree,
       fprintf(stat_file,"EdgeId\tDepth\tMeanMinDist\n");
 
     /* OUTPUT FINAL STATISTICS and UPDATE REF TREE WITH BOOTSTRAP VALUES */
-    for (i = 0; i <  ref_tree->nb_edges; i++) {
+    for (int i = 0; i <  ref_tree->nb_edges; i++) {
       if(ref_tree->a_edges[i]->right->nneigh == 1) { continue; }
 
       /* the bootstrap value for a branch is inscribed as the name of its descendant (always right side of the edge, by convention) */
@@ -516,7 +523,7 @@ void tbe(bool rapid, Tree *ref_tree, Tree *ref_raw_tree,
 
     if(stat_file != NULL){
       fprintf(stat_file,"Taxon\ttIndex\n");
-      for(i=0; i<n;i++){
+      for(int i=0; i<n;i++){
         fprintf(stat_file,"%s\t%f\n", taxname_lookup_table[i], moved_species_counts[i]*100.0 / ((double)num_trees));
       }
     }
@@ -524,19 +531,19 @@ void tbe(bool rapid, Tree *ref_tree, Tree *ref_raw_tree,
 
   if(stat_file != NULL && count_per_branch){
     fprintf(stat_file,"Edge\tSupport");
-    for(i=0; i<n;i++){
+    for(int i=0; i<n;i++){
       fprintf(stat_file,"\t%s", taxname_lookup_table[i]);
     }
     fprintf(stat_file,"\n");
-    for(i=0; i<m;i++){
+    for(int i=0; i<m;i++){
       if(ref_tree->a_edges[i]->right->nneigh == 1) { continue; }
       fprintf(stat_file,"%d\t%s", i,ref_tree->a_edges[i]->right->name);
-      for(j=0;j<n;j++){
+      for(int j=0;j<n;j++){
         fprintf(stat_file,"\t%f",moved_species_counts_per_branch[i][j]*1.0/num_trees);
       }
       fprintf(stat_file,"\n");
     }
-    for(i=0;i<m;i++){
+    for(int i=0;i<m;i++){
       free(moved_species_counts_per_branch[i]);
     }
     free(moved_species_counts_per_branch);
@@ -545,11 +552,32 @@ void tbe(bool rapid, Tree *ref_tree, Tree *ref_raw_tree,
   free(trans_ind);
   for(i_tree=0; i_tree < num_trees;i_tree++){
     free(trans_ind_tmp[i_tree]);
+    free(trans_ind_new[i_tree]);
   }
   free(trans_ind_tmp);
+  free(trans_ind_new);
   free(moved_species_counts);
 }
 
+/*
+Compare old and new (rapid) bootstrap calculations.
+*/
+void assert_equal_TI(int *ti_new, int *ti_old, Tree *ref_tree) {
+  bool same = true;
+  fprintf(stderr, ".");
+  for(int i=0; i < ref_tree->nb_edges; i++) {
+    if(ti_new[i] != ti_old[i]) {
+      same = false;
+      fprintf(stderr, "mismatch: pos %d new %d old %d\n", i,
+              ti_new[i], ti_old[i]);
+      fprintf(stderr, "    node ti_min: %i\n", ref_tree->a_edges[i]->right->ti_min);
+      fprintf(stderr, "    "); print_node(ref_tree->a_edges[i]->right);
+    }
+  }
+  fprintf(stderr, "\n");
+
+  assert(same);
+}
 
 /*
 Compute the Transfer Index for all edges, comparing a reference tree to an
