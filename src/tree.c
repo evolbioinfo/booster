@@ -2154,6 +2154,9 @@ void prepare_rapid_TI(Tree* mytree) {
 
 
 /* Set the .other members for the leaves of the trees.
+
+@warning  depends on leaves being in the same order for the two trees
+          
 */
 void set_leaf_bijection(Tree* tree1, Tree* tree2) {
   for(int i=0; i < tree1->leaves->i; i++)
@@ -2287,8 +2290,9 @@ void prepare_rapid_TI_doer(Node* target, Node* orig, Tree* t) {
 
     // Set the rest:
   target->diff = 0;
-  target->d_min = 1;
   target->d_lazy = target->subtreesize;
+  target->d_max = target->subtreesize;
+  target->d_min = 1;
   target->light_leaves = get_leaves_in_light_subtree(target);
 }
 
@@ -2325,8 +2329,9 @@ void print_node_TI(const Node* n) {
   char *name = "----";
   if(n->nneigh == 1)  //not a leaf
     name = n->name;
-  fprintf(stderr, "node id: %i name: %s |L|: %i depth: %i TI: %i\n", n->id,
-          name, n->subtreesize, n->depth, n->transfer_index);
+  fprintf(stderr,
+          "node id: %i name: %s |L|: %i depth: %i TImin: %i TImax: %i\n",
+          n->id, name, n->subtreesize, n->depth, n->ti_min, n->ti_max);
 }
 
 void print_node_TIvars(const Node* n) {

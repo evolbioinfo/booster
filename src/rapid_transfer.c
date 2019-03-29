@@ -20,17 +20,18 @@ u', as long as u is the "heavy" child of u'. This is repeated, starting at
 each leaf.
 
 At the end, transfer_index[i] will have the transfer index for edge i.
-
-@warning  Assumes that set_leaf_bijection() has been called.
 */
 void compute_transfer_indices_new(Tree *ref_tree, const int n,
                                   const int m, Tree *alt_tree,
                                   int *transfer_index)
 {
-  //print_nodes_post_order(ref_tree);
-  //fprintf(stderr, "alt_tree:\n");
-  //print_nodes_post_order(alt_tree);
-  Node** ref_leaves = ref_tree->leaves->a;   //Leaves in ref_tree
+  set_leaf_bijection(ref_tree, alt_tree);  //Map leaves between the two trees
+
+  DB_CALL(0, print_nodes_post_order(ref_tree));
+  DB_TRACE(0, "alt_tree:\n");
+  DB_CALL(0, print_nodes_post_order(alt_tree));
+
+  Node** ref_leaves = ref_tree->leaves->a; //Leaves in ref_tree
 
     //Compute the TI for each node, following paths from leaves in ref_tree up
     //to the root, calling add_leaf on leaves from pendant subtrees. At the end
@@ -39,40 +40,53 @@ void compute_transfer_indices_new(Tree *ref_tree, const int n,
   for(int i=0; i < ref_tree->nb_taxa; i++)
   {
     u = ref_leaves[i];                     //Start with a leaf
-    //fprintf(stderr, "------------------ new heavy -------------------------\n");
-    //print_node(u);
-    //print_nodes_TIvars(alt_tree->a_nodes, alt_tree->nb_nodes);
-    add_heavy_path(u, alt_tree);   //Compute TI on heavy path starting at u.
-    reset_heavy_path(u);           //Reset TI associated variables on alt_tree.
+
+    DB_TRACE(0, "------------------ new heavy -------------------------\n");
+    DB_CALL(0, print_node(u));
+    DB_CALL(0, print_nodes_TIvars(alt_tree->a_nodes, alt_tree->nb_nodes));
+
+    add_heavy_path(u, alt_tree);   //Compute TI on heavy path starting at u
+    reset_heavy_path(u);           //Reset TI associated variables on alt_tree
   }
 
-//fprintf(stderr, "||||||| RESULTS: |||||||\n");
-//print_nodes_TI(ref_tree->a_nodes, ref_tree->nb_nodes);
+  nodeTI_to_edgeTI(ref_tree);                //Move node values to the edges
+  edgeTI_to_array(ref_tree, transfer_index); //Copy edge values into the array
 }
 
+
+/*
+Copy the edge Transfer Index values into the given array.
+*/
+void edgeTI_to_array(Tree *tree, int *transfer_index)
+{
+  for(int i=0; i < tree->nb_edges; i++)
+    transfer_index[i] = tree->a_edges[i]->transfer_index;
+}
 
 /*
 Follow a leaf in ref_tree up to the root.  Call add_leaf on the leaves in the
 subtrees off the path.
 */
-void add_heavy_path(Node* u, Tree* alt_tree)
+void add_heavy_path(Node *u, Tree *alt_tree)
 {
   while(u)                               //Have not visited the root and have
   {                                      //not seen a heavier sibling
-    //fprintf(stderr, "________\n");
-    //fprintf(stderr, "+++++ "); print_node(u);
+    DB_TRACE(0, "________\n");
+    DB_TRACE(0, "+++++ "); DB_CALL(0, print_node(u));
       //Add the leaves from the light subtree:
     if(u->nneigh == 1)       //a leaf
       add_leaf(u->other);    //call add_leaf on v
     else
     {
-      //fprintf(stderr, "following "); printLA(u->light_leaves);
+      DB_TRACE(0, "following "); DB_CALL(0, printLA(u->light_leaves));
       for(int i=0; i < u->light_leaves->i; i++)
         add_leaf(u->light_leaves->a[i]->other);
     }
 
-    u->transfer_index = alt_tree->node0->d_min;
-    //fprintf(stderr, "+++++ TI: %i\n", u->transfer_index);
+      //Record the transfer index:
+    u->ti_min = alt_tree->node0->d_min;
+    u->ti_max = alt_tree->node0->d_max;
+    DB_CALL(0, fprintf(stderr, "+++++ TI: %i %i\n", u->ti_min, u->ti_max));
 
       //Head upwards:
     Node* parent = u->neigh[0];
@@ -83,7 +97,7 @@ void add_heavy_path(Node* u, Tree* alt_tree)
     else
       u = u->neigh[0];         //u in on the heavy side of its parent.
   }
-  //fprintf(stderr, ".....done.....\n");
+  DB_TRACE(0, ".....done.....\n");
 }
 
 /*
@@ -127,29 +141,28 @@ void add_leaf(Node *leaf)
   Node **path = path_to_root(leaf);
   for(int i = leaf->depth; i >= 0; i--)
   {
-    //fprintf(stderr, "current: "); print_node(path[i]);
-    //fprintf(stderr, "         "); print_node_TIvars(path[i]);
+    DB_TRACE(0, "current: "); DB_CALL(0, print_node(path[i]));
+    DB_TRACE(0, "         "); DB_CALL(0, print_node_TIvars(path[i]));
     path[i]->d_lazy += path[i]->diff - 1;
-    if(i != 0)                               //Not the leaf
+    if(i != 0)                                       //Not the leaf
     {
-      //fprintf(stderr, "         sib "); print_node(path[i-1]->sibling);
       path[i-1]->diff += path[i]->diff;              //Push difference down
       path[i-1]->sibling->diff += path[i]->diff+1;   //the node off the path.
     }
     path[i]->diff = 0;
-    //fprintf(stderr, "         "); print_node_TIvars(path[i]);
+    DB_TRACE(0, "         "); DB_CALL(0, print_node_TIvars(path[i]));
   }
 
-    //Follow the path back up to the root, updating the d_min values for each
-    //pair of siblings:
-  update_dmin_on_path(path, leaf->depth+1);
+    //Follow the path back up to the root, updating the d_min and d_max values
+    //for each pair of siblings:
+  update_dminmax_on_path(path, leaf->depth+1);
   free(path);
 }
 
 
 /*
-Reset the d_min, d_lazy, and diff values for the path from the given leaf
-(from alt_tree) to the root.
+Reset the d_min, d_max, d_lazy, and diff values for the path from the given
+leaf (from alt_tree) to the root.
 */
 void reset_leaf(Node *leaf)
 {
@@ -163,6 +176,7 @@ void reset_leaf(Node *leaf)
   while(1)              //While not the root
   {
     n->d_lazy = n->subtreesize;
+    n->d_max = n->subtreesize;
     n->d_min = 1;
     n->diff = 0;
 
@@ -177,17 +191,23 @@ void reset_leaf(Node *leaf)
 }
 
 /*
-Follow the nodes on the path, updating d_min on the way up.
+Follow the nodes on the path from a leaf to the root, updating d_min and
+d_max on the way up.
 */
-void update_dmin_on_path(Node** path, int pathlength)
+void update_dminmax_on_path(Node** path, int pathlength)
 {
-  path[0]->d_min = path[0]->d_lazy;
+  path[0]->d_min = path[0]->d_lazy;  //The leaf values
+  path[0]->d_max = path[0]->d_lazy;
   for(int i = 1; i < pathlength; i++)
   {
     Node *sib = path[i-1]->sibling;  //The node off the path
-    path[i]->d_min = min3(path[i-1]->d_min, sib->d_min+sib->diff,
+    path[i]->d_min = min3(path[i-1]->d_min, sib->d_min + sib->diff,
                           path[i]->d_lazy);
-    //fprintf(stderr, "up: "); print_node(path[i]);
+    DB_TRACE(0, "up: dmin %d ", path[i]->d_min);DB_CALL(0, print_node(path[i]));
+
+    path[i]->d_max = max3(path[i-1]->d_max, sib->d_max + sib->diff,
+                          path[i]->d_lazy);
+    DB_TRACE(0, "up: dmax %d\n", path[i]->d_max);
   }
 }
 
@@ -212,11 +232,31 @@ int min(int i1, int i2)
     return i1;
   return i2;
 }
+/* Return the maximum of two integers.
+*/
+int max(int i1, int i2)
+{
+  if(i1 > i2)
+    return i1;
+  return i2;
+}
 /* Return the minimum of three integers.
 */
 int min3(int i1, int i2, int i3)
 {
   return min(min(i1, i2), i3);
+}
+/* Return the maximum of three integers.
+*/
+int max3(int i1, int i2, int i3)
+{
+  return max(max(i1, i2), i3);
+}
+/* Return the minimum of four integers.
+*/
+int min4(int i1, int i2, int i3, int i4)
+{
+  return min(min3(i1, i2, i3), i4);
 }
 
 /*
@@ -255,4 +295,33 @@ Node** leaf_to_leaf(Node **leaves1, Node **leaves2, int n)
     indexTOleaf2[i] = leaves2[i];
 
   return indexTOleaf2;
+}
+
+/*
+Compute the edge Transfer Index from the child node transfer index.
+
+@warning  this doesn't work on unrooted trees since it igores d_max
+*/
+void nodeTI_to_edgeTI(Tree *tree)
+{
+  for(int i=0; i < tree->nb_nodes; i++)
+  {
+    Node *n = tree->a_nodes[i];
+    set_edge_TI(n, tree->nb_taxa);
+  }
+}
+
+/*
+Set the Transfer Index of the edge above this node (in ref_tree).
+
+@warning  assume that ti_min and ti_max are already set.
+*/
+void set_edge_TI(Node *u, int n)
+{
+  if(u->depth != 0)              //Not the root
+  {
+    DB_TRACE(0, "min %i max %i ", u->ti_min, n - u->ti_max);
+    DB_CALL(0, print_node(u));
+    u->br[0]->transfer_index = min(u->ti_min, n - u->ti_max);
+  }
 }

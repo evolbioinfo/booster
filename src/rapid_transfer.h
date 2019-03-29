@@ -2,6 +2,7 @@
 #define __RAPID_TRANSFER_H__
 
 #include "tree.h"
+#include "debug.h"
 
 
 
@@ -26,6 +27,17 @@ void compute_transfer_indices_new(Tree *ref_tree, const int n,
                                   const int m, Tree *alt_tree,
                                   int *transfer_index);
 
+
+/* Compute the edge Transfer Index from the child node transfer index.
+
+@warning  this doesn't work on unrooted trees since it igores d_max
+*/
+void nodeTI_to_edgeTI(Tree* ref_tree);
+
+/* Copy the edge Transfer Index values into the given array.
+*/
+void edgeTI_to_array(Tree *tree, int *transfer_index);
+
 /* Follow a leaf in ref_tree up to the root.  Call add_leaf on the leaves in the
 subtrees off the path.
 */
@@ -39,14 +51,14 @@ void reset_heavy_path(Node* u);
 leaf to the root.
 */
 void add_leaf(Node *leaf);
-/* Reset the d_min, d_lazy, and diff values for the path from the given leaf
-(from alt_tree) to the root.
+/* Reset the d_min, d_max, d_lazy, and diff values for the path from the given
+leaf (from alt_tree) to the root.
 */
 void reset_leaf(Node *leaf);
 
-/* Follow the nodes on the path, updating d_min on the way up.
+/* Follow the nodes on the path, updating d_min and d_max on the way up.
 */
-void update_dmin_on_path(Node** path, int pathlength);
+void update_dminmax_on_path(Node** path, int pathlength);
 
 
 
@@ -57,9 +69,18 @@ void assert_is_leaf(Node* leaf);
 /* Return the minimum of two integers.
 */
 int min(int i1, int i2);
+/* Return the maximum of two integers.
+*/
+int max(int i1, int i2);
 /* Return the minimum of three integers.
 */
 int min3(int i1, int i2, int i3);
+/* Return the maximum of three integers.
+*/
+int max3(int i1, int i2, int i3);
+/* Return the minimum of four integers.
+*/
+int min4(int i1, int i2, int i3, int i4);
 
 /* Return a path (array of Node*) from this node to the root.
 
@@ -73,5 +94,11 @@ from leaves2.
 @warning  modifies (sorts) leaves1 and leaves2
 */
 Node** leaf_to_leaf(Node **leaves1, Node **leaves2, int n);
+
+/* Set the Transfer Index of the edge above this node (in ref_tree).
+
+@warning  assume that ti_min and ti_max are already set.
+*/
+void set_edge_TI(Node *u, int n);
 
 #endif

@@ -73,18 +73,20 @@ typedef struct __Node {
 	double mheight;	/* the height of a node is its min distance to a leaf */
 
          // Variables used for rapid transfer index calculation on alt_tree:
-   int subtreesize;   // Number of leaves in subtree rooted at this node (assume rooted)
-   int depth;         // The depth of the node (from the root)
-   int d_lazy;        // The lazily updated transfer distance
-   int diff;          // For a node v, td(u,v) = d_lazy + Sum_{n \in Pv} diff_n
-                      // (Pv is the path from v to the root)
-   int d_min;         // Minimum transfer distance for subtree rooted here
-   Node* other;       // The corresponding leaf in the other tree
-   Node* sibling;     // The sibling of this node in a rooted binary tree
+   int subtreesize; // Number of leaves in subtree rooted at this node (assume rooted)
+   int depth;       // The depth of the node (from the root)
+   int d_lazy;      // The lazily updated transfer distance
+   int diff;        // For a node v, td(u,v) = d_lazy + Sum_{n \in Pv} diff_n
+                    // (Pv is the path from v to the root)
+   int d_min;       // Minimum TI found in this subtree
+   int d_max;       // Maximum TI found in this subtree (used for unrooted TI)
+   Node* other;     // The corresponding leaf in the other tree
+   Node* sibling;   // The sibling of this node in a rooted binary tree
    LeafArray* light_leaves;   // The leaves in the light child.
 
          // Variables used for rapid transfer index calculation on ref_tree:
-   int transfer_index;// The (rooted) transfer index for this node.
+   int ti_min;      // The (rooted) transfer index for this node.
+   int ti_max;      // The (rooted) maximum transfer distance for this subtree.
 } Node;
 
 
@@ -107,6 +109,9 @@ typedef struct __Edge {
 				      		   we then immediately set the branch length to MIN_BRLEN */
 	short int has_branch_support; 	
 	int topo_depth;				/* the topological depth is the number of taxa on the lightest side of the bipar */
+
+         // Variables used for rapid transfer index calculation on ref_tree:
+   int transfer_index;  // The (unrooted) transfer index for this edge.
 } Edge;
 
 
@@ -406,6 +411,7 @@ void prepare_rapid_TI_post(Tree* tree);
 void print_nodes_post_order(Tree* t);
 void print_node_callback(Node* n, Node* m, Tree* t);
 void print_node(const Node* n);
+void print_node_TI(const Node* n);
 /* Print TI variables for a node in alt_tree.
 */
 void print_node_TIvars(const Node* n);
