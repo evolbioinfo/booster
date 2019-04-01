@@ -2273,19 +2273,19 @@ Set up all the Node variables associated with rapid Transfer Index calculation.
 */
 void prepare_rapid_TI_doer(Node* target, Node* orig, Tree* t) {
     // Set subtreesize:
-  if(target->nneigh == 1)      //leaf
+  if(target->nneigh == 1)           //leaf
   {
     target->subtreesize = 1;
     addLeafLA(t->leaves, target);
   }
-  else if(target->nneigh == 2) //root
+  else if(target == t->node0)       //root
     target->subtreesize = target->neigh[0]->subtreesize +
                           target->neigh[1]->subtreesize;
   else
     target->subtreesize = target->neigh[1]->subtreesize +
                           target->neigh[2]->subtreesize;
 
-  if(target->nneigh != 2)
+  if(target != t->node0)            //not root
     target->sibling = get_sibling(target);
 
     // Set the rest:
@@ -2429,6 +2429,8 @@ int compare_nodes_bitarray(const void *l1, const void *l2) {
 */
 Node* get_sibling(Node* u)
 {
+  assert(u->depth != 0);
+
   Node *parent = u->neigh[0];
   Node *child1 = parent->neigh[1];
   Node *child2;
@@ -2446,7 +2448,7 @@ Node* get_sibling(Node* u)
 
 /* - - - Hashmap for mapping nodes for ref_tree to nodes of alt_tree - - - - */
 
-// UNUSED!!!
+// !!!UNUSED and UNFINISHED!!!
 
 /*
 Build a hashmap mapping leaf name to leaves of tree2.

@@ -46,6 +46,11 @@ void compute_transfer_indices_new(Tree *ref_tree, const int n,
     DB_CALL(0, print_nodes_TIvars(alt_tree->a_nodes, alt_tree->nb_nodes));
 
     add_heavy_path(u, alt_tree);   //Compute TI on heavy path starting at u
+    for(int j=0; j < alt_tree->nb_nodes; j++)
+    {
+      if(alt_tree->a_nodes[j]->d_lazy < 0)
+        fprintf(stderr, "NEGATIVE!\n");
+    }
     reset_heavy_path(u);           //Reset TI associated variables on alt_tree
   }
 
@@ -180,13 +185,13 @@ void reset_leaf(Node *leaf)
     n->d_min = 1;
     n->diff = 0;
 
-    if(n->depth != 0)   //Not the root
+    if(n->depth == 0)   //the root
+      break;
+    else
     {
       n->sibling->diff = 0;
       n = n->neigh[0];
     }
-    else
-      break;
   }
 }
 
@@ -299,8 +304,6 @@ Node** leaf_to_leaf(Node **leaves1, Node **leaves2, int n)
 
 /*
 Compute the edge Transfer Index from the child node transfer index.
-
-@warning  this doesn't work on unrooted trees since it igores d_max
 */
 void nodeTI_to_edgeTI(Tree *tree)
 {
