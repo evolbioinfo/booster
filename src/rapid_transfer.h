@@ -29,8 +29,6 @@ void compute_transfer_indices_new(Tree *ref_tree, const int n,
 
 
 /* Compute the edge Transfer Index from the child node transfer index.
-
-@warning  this doesn't work on unrooted trees since it igores d_max
 */
 void nodeTI_to_edgeTI(Tree* ref_tree);
 

@@ -77,21 +77,22 @@ void add_heavy_path(Node *u, Tree *alt_tree)
   while(u)                               //Have not visited the root and have
   {                                      //not seen a heavier sibling
     DB_TRACE(0, "________\n");
-    DB_TRACE(0, "+++++ "); DB_CALL(0, print_node(u));
+    DB_TRACE(0, "++++++++ "); DB_CALL(0, print_node(u));
+
       //Add the leaves from the light subtree:
-    if(u->nneigh == 1)       //a leaf
-      add_leaf(u->other);    //call add_leaf on v
+    if(u->nneigh == 1)                           //a leaf
+      add_leaf(u->other);                        //call add_leaf on v
     else
     {
       DB_TRACE(0, "following "); DB_CALL(0, printLA(u->light_leaves));
-      for(int i=0; i < u->light_leaves->i; i++)
-        add_leaf(u->light_leaves->a[i]->other);
+      for(int i=0; i < u->light_leaves->i; i++)  //a subtree
+        add_leaf(u->light_leaves->a[i]->other);  //add_leaf on leaves in subtree
     }
 
       //Record the transfer index:
     u->ti_min = alt_tree->node0->d_min;
     u->ti_max = alt_tree->node0->d_max;
-    DB_CALL(0, fprintf(stderr, "+++++ TI: %i %i\n", u->ti_min, u->ti_max));
+    DB_CALL(0, fprintf(stderr, "++++++++ TI: %i %i\n", u->ti_min, u->ti_max));
 
       //Head upwards:
     Node* parent = u->neigh[0];

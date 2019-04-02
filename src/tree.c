@@ -2143,6 +2143,26 @@ void sortLA(LeafArray *la) {
   qsort(la->a, la->i, sizeof(Node*), compare_nodes);
 }
 
+/* Concatinate the given LeafArrays. Free the memory of la1 and la2 if freemem
+is true.
+
+@note  user responsible for memory.
+*/
+LeafArray* concatinateLA(LeafArray *la1, LeafArray *la2, bool freemem) {
+  LeafArray *newla = allocateLA(la1->i + la2->i);
+  for(int i=0; i < la1->i; i++)
+    addLeafLA(newla, la1->a[i]);
+  for(int i=0; i < la2->i; i++)
+    addLeafLA(newla, la2->a[i]);
+
+  if(freemem)
+  {
+    freeLA(la1);
+    freeLA(la2);
+  }
+  return newla;
+}
+
 
 /* Do everything necessary to prepare for rapid Transfer Index (TI) computation.
 */
@@ -2168,31 +2188,65 @@ void set_leaf_bijection(Tree* tree1, Tree* tree2) {
 
 
 /*
-Return all leaves coming from the light subtree of this node.
+Return all leaves coming from the light subtree of this node.  A root can have
+more than 1 light subtree if it is a pseudo-root (3-fan).
 
 @warning  user responsible for memory (use freeLA())
 */
 LeafArray* get_leaves_in_light_subtree(Node *u)
 {
-  if(u->nneigh == 1)  //leaf
+  if(u->nneigh == 1)    //leaf
     return allocateLA(0);
 
-  Node *leftchild, *rightchild;
-  if(u->depth == 0)   //root
+  if(u->depth == 0)     //root
   {
-    leftchild = u->neigh[0];
-    rightchild = u->neigh[1];
+    Node *lightchild, *heavychild;
+    if(u->neigh[0]->subtreesize >= u->neigh[1]->subtreesize)
+    {
+      heavychild = u->neigh[0];
+      lightchild = u->neigh[1];
+    }
+    else
+    {
+      lightchild = u->neigh[0];
+      heavychild = u->neigh[1];
+    }
+    LeafArray *lightleaves = get_leaves_in_subtree(lightchild);
+
+    if(u->nneigh == 3)  //a pseudo-root (3-fan)
+    {
+      if(heavychild->subtreesize >= u->neigh[2]->subtreesize)
+        lightchild = u->neigh[2];
+      else
+        lightchild = heavychild;
+
+      return concatinateLA(lightleaves, get_leaves_in_subtree(lightchild),
+                           true);
+    }
+    else if(u->nneigh > 3)
+    {
+      fprintf(stderr, "ERROR: Root has %i (> 3) children.", u->nneigh);
+	    Generic_Exit(__FILE__,__LINE__,__FUNCTION__,EXIT_FAILURE);
+    }
+
+    return lightleaves;
   }
-  else
+  else                  //not root or leaf
   {
-    leftchild = u->neigh[1];
-    rightchild = u->neigh[2];
+    Node* leftchild = u->neigh[1];
+    Node* rightchild = u->neigh[2];
+
+    if(u->nneigh > 3)   //Do not support non-binary trees, aside from root
+    {                   //(would have to modify use of sibling to do this).
+      fprintf(stderr, "ERROR: internal node has %i (> 2) children.", u->nneigh);
+	    Generic_Exit(__FILE__,__LINE__,__FUNCTION__,EXIT_FAILURE);
+    }
+
+    if(leftchild->subtreesize >= rightchild->subtreesize) //came from left
+      return get_leaves_in_subtree(rightchild);
+
+    return get_leaves_in_subtree(leftchild);
   }
-
-  if(leftchild->subtreesize >= rightchild->subtreesize) //came from left
-    return get_leaves_in_subtree(rightchild);
-
-  return get_leaves_in_subtree(leftchild);
 }
 
 
@@ -2279,12 +2333,17 @@ void prepare_rapid_TI_doer(Node* target, Node* orig, Tree* t) {
     addLeafLA(t->leaves, target);
   }
   else if(target == t->node0)       //root
+  {
     target->subtreesize = target->neigh[0]->subtreesize +
                           target->neigh[1]->subtreesize;
+    if(target->nneigh == 3)
+      target->subtreesize += target->neigh[2]->subtreesize;
+  }
   else
     target->subtreesize = target->neigh[1]->subtreesize +
                           target->neigh[2]->subtreesize;
 
+    // Set the sibling if not the root:
   if(target != t->node0)            //not root
     target->sibling = get_sibling(target);
 
@@ -2444,6 +2503,53 @@ Node* get_sibling(Node* u)
   return child1;
 }
 
+
+/* - - - - - - - - - - - - - Rerooting Trees - - - - - - - - - - - - - - - - */
+
+// !!!UNFINISHED!!! and unused
+
+/*
+Reroot the given tree at the given leaf.
+
+@warning !!!UNFINISHED!!!
+*/
+Node* reroot_tree_at(Tree *t, Node *l) {
+    //Attach the new root.
+	Node* oldroot = t->node0;
+	Node* newroot = new_node("root", t, 2);
+	t->node0 = newroot;
+	
+	Edge* edge = l->br[0];       //The parent branch to the leaf
+  edge->right = edge->left;
+
+
+  /*
+	Edge* new_br = new_edge(t);
+	new_br->left = newroot;
+	new_br->right = oldroot;
+	new_br->brlen = MIN_BRLEN;
+	new_br->had_zero_length = 1;
+	new_br->has_branch_support = 0;
+  */
+
+    //Traverse the tree from the leaf to the root, re-orienting the neighbors:
+  Node* n = l;
+  while(n != oldroot) {
+  }
+}
+
+
+/*
+Return a child of the root that is a leaf. Otherwise, follow a path to a leaf.
+*/
+Node* get_pseudoroot_leaf(Tree *t) {
+  for(int i=0; i < t->node0->nneigh; i++)
+    if(t->node0->neigh[i]->nneigh == 1)   //The child is a leaf
+      return t->node0->neigh[i];
+
+    //None of the children were a leaf, so choose a random leaf from a subtree:
+  return t->node0->neigh[0]->light_leaves->a[0];
+}
 
 
 /* - - - Hashmap for mapping nodes for ref_tree to nodes of alt_tree - - - - */

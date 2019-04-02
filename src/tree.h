@@ -339,15 +339,26 @@ LeafArray* allocateLA(int n);
 
 /* Add a leaf to the leaf array.
 */
-void addLeafLA(LeafArray* la, Node* u);
+void addLeafLA(LeafArray *la, Node *u);
 
 /* Free the array in the LeafArray.
 */
-void freeLA(LeafArray* la);
+void freeLA(LeafArray *la);
 
 /* Print the nodes in the LeafArray.
 */
-void printLA(LeafArray* la);
+void printLA(LeafArray *la);
+
+/* Sort by the taxa names.
+*/
+void sortLA(LeafArray *la);
+
+/* Concatinate the given LeafArrays. Free the memory of la1 and la2 if freemem
+is true.
+
+@note  user responsible for memory.
+*/
+LeafArray* concatinateLA(LeafArray *la1, LeafArray *la2, bool freemem);
 
 /* - - - - - - - - - - - - - */
 
@@ -459,6 +470,21 @@ int compare_nodes_bitarray(const void *l1, const void *l2);
 @warning  assume the node is not the root
 */
 Node* get_sibling(Node* u);
+
+
+/* - - - - - - - - - - - - - Rerooting Trees - - - - - - - - - - - - - - - - */
+
+// !!!UNFINISHED!!! and unused
+
+/* Reroot the given tree at the given leaf.
+@warning !!!UNFINISHED!!!
+*/
+Node* reroot_tree_at(Tree *t, Node *l);
+
+/* Return a child of the root that is a leaf. Otherwise, follow a path to a
+leaf.
+*/
+Node* get_pseudoroot_leaf(Tree *t);
 
 
 /* - - - Hashmap for mapping nodes for ref_tree to nodes of alt_tree - - - - */
