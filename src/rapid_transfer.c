@@ -36,7 +36,7 @@ void compute_transfer_indices_new(Tree *ref_tree, const int n,
     //Compute the TI for each node, following paths from leaves in ref_tree up
     //to the root, calling add_leaf on leaves from pendant subtrees. At the end
     //of each loop, the TI will be the value of d_min at the root of alt_tree.
-  Node* u;                                 //Node to follow up to the root
+  Node* u;                                 //Node to follow to root of ref_tree
   for(int i=0; i < ref_tree->nb_taxa; i++)
   {
     u = ref_leaves[i];                     //Start with a leaf
@@ -81,13 +81,13 @@ void add_heavy_path(Node *u, Tree *alt_tree)
     DB_TRACE(0, "++++++++ "); DB_CALL(0, print_node(u));
 
       //Add the leaves from the light subtree:
-    if(u->nneigh == 1)                           //a leaf
-      add_leaf(u->other);                        //call add_leaf on v
+    if(u->nneigh == 1)                          //a leaf
+      add_leaf(u->other);                       //call add_leaf on v
     else
     {
-      DB_TRACE(0, "following "); DB_CALL(0, printLA(u->light_leaves));
-      for(int i=0; i < u->light_leaves->i; i++)  //a subtree
-        add_leaf(u->light_leaves->a[i]->other);  //add_leaf on leaves in subtree
+      DB_TRACE(0, "following "); DB_CALL(0, printLA(u->lightleaves));
+      for(int i=0; i < u->lightleaves->i; i++)  //a subtree
+        add_leaf(u->lightleaves->a[i]->other);  //add_leaf on leaves in subtree
     }
 
       //Record the transfer index:
@@ -96,13 +96,10 @@ void add_heavy_path(Node *u, Tree *alt_tree)
     DB_CALL(0, fprintf(stderr, "++++++++ TI: %i %i\n", u->ti_min, u->ti_max));
 
       //Head upwards:
-    Node* parent = u->neigh[0];
-    if(u->depth == 0 ||                             //u is root
-       2*u->subtreesize < parent->subtreesize ||    //u on the light side
-       (2*u->subtreesize == parent->subtreesize && is_right_child(u)))
-      u = NULL;
+    if(u->depth == 0 || u != u->neigh[0]->heavychild)
+      u = NULL;              //u is root or light child
     else
-      u = u->neigh[0];         //u in on the heavy side of its parent.
+      u = u->neigh[0];       //u in on the heavy side of its parent.
   }
   DB_TRACE(0, ".....done.....\n");
 }
@@ -119,17 +116,14 @@ void reset_heavy_path(Node* u)
     if(u->nneigh == 1)       //a leaf
       reset_leaf(u->other);  //call add_leaf on v
     else
-      for(int i=0; i < u->light_leaves->i; i++)
-        reset_leaf(u->light_leaves->a[i]->other);
+      for(int i=0; i < u->lightleaves->i; i++)
+        reset_leaf(u->lightleaves->a[i]->other);
 
       //Head upwards:
-    Node* parent = u->neigh[0];
-    if(u->depth == 0 ||                             //u is root
-       2*u->subtreesize < parent->subtreesize ||    //u on the light side
-       (2*u->subtreesize == parent->subtreesize && is_right_child(u)))
-      u = NULL;
+    if(u->depth == 0 || u != u->neigh[0]->heavychild)
+      u = NULL;              //u is root or light child
     else
-      u = u->neigh[0];         //u is on the heavy side of its parent.
+      u = u->neigh[0];       //u is on the heavy side of its parent.
   }
 }
 
@@ -146,22 +140,26 @@ void add_leaf(Node *leaf)
     //with the diff values, subtracting 1, but adding 1 to the diff values of
     //nodes off the path:
   Node **path = path_to_root(leaf);
-  for(int i = leaf->depth; i >= 0; i--)
+  for(int i = leaf->depth; i > 0; i--)              //For all non leaf Nodes
   {
     DB_TRACE(0, "current: "); DB_CALL(0, print_node(path[i]));
     DB_TRACE(0, "         "); DB_CALL(0, print_node_TIvars(path[i]));
     path[i]->d_lazy += path[i]->diff - 1;
-    if(i != 0)                                       //Not the leaf
-    {
-      path[i-1]->diff += path[i]->diff;              //Push difference down
-      path[i-1]->sibling->diff += path[i]->diff+1;   //the node off the path.
+    path[i-1]->diff += path[i]->diff;               //Push difference down
 
-      if(path[i]->depth == 0 && path[i]->nneigh == 3)//If a pseudo-root (3-fan),
-        path[i-1]->sibling2->diff += path[i]->diff+1;//set other node off path.
-    }
+    int startindex = 1;                             //Not the root
+    if(path[i]->depth == 0)
+      startindex = 0;                               //The root
+
+    for(int j = startindex; j < path[i]->nneigh; j++)
+      if(path[i]->neigh[j] != path[i-1])
+        path[i]->neigh[j]->diff += path[i]->diff+1; //The node off the path
+
     path[i]->diff = 0;
     DB_TRACE(0, "         "); DB_CALL(0, print_node_TIvars(path[i]));
   }
+  leaf->d_lazy += leaf->diff - 1;
+  leaf->diff = 0;
 
     //Follow the path back up to the root, updating the d_min and d_max values
     //for each pair of siblings:
@@ -178,28 +176,27 @@ void reset_leaf(Node *leaf)
 {
   assert_is_leaf(leaf);
 
-    //Follow the path from the root to the leaf, reseting the values along
+    //Follow the path from the root to the leaf, resetting the values along
     //the way:
   Node *n = leaf;
-  int pathlen = n->depth;
-  for(int i=0; i <= pathlen; i++)
-  while(1)              //While not the root
+  while(1)                     //While not the root
   {
     n->d_lazy = n->subtreesize;
     n->d_max = n->subtreesize;
     n->d_min = 1;
     n->diff = 0;
-
-    if(n->depth == 0)   //the root
-      break;
-    else
+    if(n->nneigh != 1)         //not the leaf
     {
-      n->sibling->diff = 0;
-      if(n->sibling2)
-        n->sibling2->diff = 0;
+      for(int i=1; i < n->nneigh; i++)
+        n->neigh[i]->diff = 0; //reset all children (including one on path)
 
-      n = n->neigh[0];
+      if(n->depth == 0)        //the root
+      {
+        n->neigh[0]->diff = 0; //reset the first child
+        return;
+      }
     }
+    n = n->neigh[0];
   }
 }
 
@@ -213,17 +210,19 @@ void update_dminmax_on_path(Node** path, int pathlength)
   path[0]->d_max = path[0]->d_lazy;
   for(int i = 1; i < pathlength; i++)
   {
-    Node *sib = path[i-1]->sibling;  //The node off the path
-    path[i]->d_min = min3(path[i-1]->d_min, sib->d_min + sib->diff,
-                          path[i]->d_lazy);
-    path[i]->d_max = max3(path[i-1]->d_max, sib->d_max + sib->diff,
-                          path[i]->d_lazy);
+    path[i]->d_min = path[i]->d_lazy;
+    path[i]->d_max = path[i]->d_lazy;
 
-    if(path[i]->depth == 0 && path[i]->nneigh == 3)  //Pseudo-root
+      //Check values of the children:
+    int startind = 1;
+    if(path[i]->depth == 0)          //The root
+      startind = 0;                  //Not the root
+    for(int j = startind; j < path[i]->nneigh; j++)
     {
-      sib = path[i-1]->sibling2;                     //Other node off the path
-      path[i]->d_min = min(path[i]->d_min, sib->d_min + sib->diff);
-      path[i]->d_max = max(path[i]->d_max, sib->d_max + sib->diff);
+      path[i]->d_min = min(path[i]->d_min,
+                           path[i]->neigh[j]->d_min + path[i]->neigh[j]->diff);
+      path[i]->d_max = max(path[i]->d_max,
+                           path[i]->neigh[j]->d_max + path[i]->neigh[j]->diff);
     }
 
     DB_TRACE(0, "up: dmin %d ", path[i]->d_min);DB_CALL(0, print_node(path[i]));
@@ -297,7 +296,7 @@ Node** path_to_root(Node *n)
   for(int i=0; i <= pathlen; i++)
   {
     path[i] = n;
-    n = n->neigh[0];  //If depth is set wrong then this will go back to child.
+    n = n->neigh[0];
   }
 
   return path;

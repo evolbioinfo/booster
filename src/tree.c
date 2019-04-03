@@ -1997,7 +1997,7 @@ void free_tree(Tree* tree) {
 	int i;
 	for (i=0; i < tree->nb_nodes; i++)
   {
-    freeLA(tree->a_nodes[i]->light_leaves);
+    freeLA(tree->a_nodes[i]->lightleaves);
     free_node(tree->a_nodes[i]);
   }
 	for (i=0; i < tree->nb_edges; i++) free_edge(tree->a_edges[i]);
@@ -2176,7 +2176,6 @@ void prepare_rapid_TI(Tree* mytree) {
 /* Set the .other members for the leaves of the trees.
 
 @warning  depends on leaves being in the same order for the two trees
-          
 */
 void set_leaf_bijection(Tree* tree1, Tree* tree2) {
   for(int i=0; i < tree1->leaves->i; i++)
@@ -2188,7 +2187,7 @@ void set_leaf_bijection(Tree* tree1, Tree* tree2) {
 
 
 /*
-Return all leaves coming from the light subtree of this node.  A root can have
+Return all leaves coming from the light subtrees of this node.  A root can have
 more than 1 light subtree if it is a pseudo-root (3-fan).
 
 @warning  user responsible for memory (use freeLA())
@@ -2247,6 +2246,43 @@ LeafArray* get_leaves_in_light_subtree(Node *u)
 
     return get_leaves_in_subtree(leftchild);
   }
+}
+
+/*
+Find the heaviest child of this node (set u->heavychild), set u->lightleaves
+to point to a LeafArray with all leaves not in the heavychild.
+
+@warning  user responsible for memory of lightleaves (use freeLA())
+*/
+void setup_heavy_light_subtrees(Node *u)
+{
+  if(u->nneigh == 1)           //leaf
+  {
+    u->heavychild = NULL;
+    u->lightleaves = allocateLA(0);
+    return;
+  }
+
+  int startind = 1;            //not root
+  if(u->depth == 0)
+    startind = 0;              //root
+
+    //Find heavy child:
+  u->heavychild = u->neigh[startind];
+  for(int i = startind+1; i < u->nneigh; i++)
+  {
+    if(u->heavychild->subtreesize < u->neigh[i]->subtreesize)
+      u->heavychild = u->neigh[i];
+    i++;
+  }
+
+    //Concatinate LeafArrays from light children:
+  u->lightleaves = allocateLA(0);
+  for(int i = startind; i < u->nneigh; i++)
+    if(u->neigh[i] != u->heavychild)
+      u->lightleaves = concatinateLA(u->lightleaves,
+                                     get_leaves_in_subtree(u->neigh[i]),
+                                     true);
 }
 
 
@@ -2322,6 +2358,7 @@ Node** get_leaves(const Tree* tree) {
 
 /*
 Set up all the Node variables associated with rapid Transfer Index calculation.
+This is to be used in a post-order traversal of the tree.
 
 @warning  assumes binary rooted tree.
 */
@@ -2332,31 +2369,22 @@ void prepare_rapid_TI_doer(Node* target, Node* orig, Tree* t) {
     target->subtreesize = 1;
     addLeafLA(t->leaves, target);
   }
-  else if(target == t->node0)       //root
+  else                              //internal node
   {
-    target->subtreesize = target->neigh[0]->subtreesize +
-                          target->neigh[1]->subtreesize;
-    if(target->nneigh == 3)
-      target->subtreesize += target->neigh[2]->subtreesize;
-  }
-  else
-    target->subtreesize = target->neigh[1]->subtreesize +
-                          target->neigh[2]->subtreesize;
+    target->subtreesize = 0;
+    if(target == t->node0)          //root
+      target->subtreesize = target->neigh[0]->subtreesize;
 
-    // Set the sibling if not the root:
-  if(target != t->node0)               //not root
-  {
-    target->sibling = get_sibling(target);
-    if(target->neigh[0]->nneigh == 3)  //parent is pseudo-root (3-fan)
-      target->sibling2 = get_other_sibling(target, target->sibling);
+    for(int i=1; i < target->nneigh; i++)
+      target->subtreesize += target->neigh[i]->subtreesize;
   }
-
+  
     // Set the rest:
   target->diff = 0;
   target->d_lazy = target->subtreesize;
   target->d_max = target->subtreesize;
   target->d_min = 1;
-  target->light_leaves = get_leaves_in_light_subtree(target);
+  setup_heavy_light_subtrees(target);
 }
 
 
@@ -2383,14 +2411,14 @@ void print_node_callback(Node* n, Node* m, Tree* t) {
 
 void print_node(const Node* n) {
   char *name = "----";
-  if(n->nneigh == 1)  //not a leaf
+  if(n->nneigh == 1)  //a leaf
     name = n->name;
   fprintf(stderr, "node id: %i name: %s |L|: %i depth: %i\n", n->id,
           name, n->subtreesize, n->depth);
 }
 void print_node_TI(const Node* n) {
   char *name = "----";
-  if(n->nneigh == 1)  //not a leaf
+  if(n->nneigh == 1)  //a leaf
     name = n->name;
   fprintf(stderr,
           "node id: %i name: %s |L|: %i depth: %i TImin: %i TImax: %i\n",
@@ -2573,7 +2601,7 @@ Node* get_pseudoroot_leaf(Tree *t) {
       return t->node0->neigh[i];
 
     //None of the children were a leaf, so choose a random leaf from a subtree:
-  return t->node0->neigh[0]->light_leaves->a[0];
+  return t->node0->neigh[0]->lightleaves->a[0];
 }
 
 

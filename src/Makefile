@@ -5,8 +5,8 @@ UNAME := $(shell uname)
 
 #CFLAGS = -Wall -g -DVERSION=\"$(GIT_VERSION)\" #-DDEBUG 
 #CFLAGS_OMP = -Wall -g -fopenmp
-CFLAGS = -Wall -O3 -DVERSION=\"$(GIT_VERSION)\"
-CFLAGS_OMP = -Wall -03 -fopenmp
+CFLAGS = -Wall -O3 -DVERSION=\"$(GIT_VERSION)\" -DNDEBUG
+CFLAGS_OMP = -Wall -O3 -fopenmp -DNDEBUG
 
 # Compiler: gcc
 ifeq ($(cross),win32)

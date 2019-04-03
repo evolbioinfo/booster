@@ -80,14 +80,13 @@ typedef struct __Node {
                     // (Pv is the path from v to the root)
    int d_min;       // Minimum TI found in this subtree
    int d_max;       // Maximum TI found in this subtree (used for unrooted TI)
-   Node* other;     // The corresponding leaf in the other tree
-   Node* sibling;   // The sibling of this node in a rooted binary tree
-   Node* sibling2;  // The other sibling if child of pseudo-root node (3-fan).
-   LeafArray* light_leaves;   // The leaves in the light child.
 
          // Variables used for rapid transfer index calculation on ref_tree:
-   int ti_min;      // The (rooted) transfer index for this node.
-   int ti_max;      // The (rooted) maximum transfer distance for this subtree.
+   int ti_min;       // The (rooted) transfer index for this node.
+   int ti_max;       // The (rooted) maximum transfer distance for this subtree.
+   LeafArray* lightleaves;   // The leaves in the light children.
+   Node* heavychild; // The heaviest child
+   Node* other;     // The corresponding leaf in the other tree
 } Node;
 
 
@@ -369,6 +368,8 @@ LeafArray* concatinateLA(LeafArray *la1, LeafArray *la2, bool freemem);
 void prepare_rapid_TI(Tree* mytree);
 
 /* Set the .other members for the leaves of the trees.
+
+@warning  depends on leaves being in the same order for the two trees
 */
 void set_leaf_bijection(Tree* tree1, Tree* tree2);
 
@@ -379,6 +380,14 @@ Return all leaves coming from the light subtree of this node.
 @warning  user responsible for memory
 */
 LeafArray* get_leaves_in_light_subtree(Node *u);
+
+/*
+Find the heaviest child of this node (set u->heavychild), set u->lightleaves
+to point to a LeafArray with all leaves not in the heavychild.
+
+@warning  user responsible for memory of u->lightleaves (use freeLA())
+*/
+void setup_heavy_light_subtrees(Node *u);
 
 
 /* Return all leaves coming from the light subtree of this node.

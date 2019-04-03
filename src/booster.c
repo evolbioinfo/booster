@@ -464,6 +464,7 @@ void tbe(bool rapid, Tree *ref_tree, Tree *ref_raw_tree,
                                moved_species_counts_per_branch,
                                count_per_branch, dist_cutoff);
 
+    //  //Uncomment this to compare methods:
     //compute_transfer_indices_new(ref_tree, n, m, alt_tree,
     //                             trans_ind_new[i_tree]);
     //compute_transfer_indices(ref_tree, n, m, alt_tree, trans_ind_tmp[i_tree],
@@ -564,7 +565,6 @@ Compare old and new (rapid) bootstrap calculations.
 */
 void assert_equal_TI(int *ti_new, int *ti_old, Tree *ref_tree) {
   bool same = true;
-  fprintf(stderr, ".");
   for(int i=0; i < ref_tree->nb_edges; i++) {
     if(ti_new[i] != ti_old[i]) {
       same = false;
@@ -574,9 +574,9 @@ void assert_equal_TI(int *ti_new, int *ti_old, Tree *ref_tree) {
       fprintf(stderr, "    "); print_node(ref_tree->a_edges[i]->right);
     }
   }
-  fprintf(stderr, "\n");
-
-  assert(same);
+  if(!same)
+    exit(0);
+  fprintf(stderr, "comparison done.\n");
 }
 
 /*
