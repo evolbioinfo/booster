@@ -82,6 +82,7 @@ typedef struct __Node {
    int d_max;       // Maximum TI found in this subtree (used for unrooted TI)
    Node* other;     // The corresponding leaf in the other tree
    Node* sibling;   // The sibling of this node in a rooted binary tree
+   Node* sibling2;  // The other sibling if child of pseudo-root node (3-fan).
    LeafArray* light_leaves;   // The leaves in the light child.
 
          // Variables used for rapid transfer index calculation on ref_tree:
@@ -471,6 +472,12 @@ int compare_nodes_bitarray(const void *l1, const void *l2);
 */
 Node* get_sibling(Node* u);
 
+/* Return the sibling to this Node that is not the given Node sib.
+Returns NULL if there is not another sibling (the root is not a pseudo-root).
+
+@warning  assume the node is not the root
+*/
+Node* get_other_sibling(Node *n, Node *sib);
 
 /* - - - - - - - - - - - - - Rerooting Trees - - - - - - - - - - - - - - - - */
 

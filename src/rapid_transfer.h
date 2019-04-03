@@ -73,12 +73,15 @@ int max(int i1, int i2);
 /* Return the minimum of three integers.
 */
 int min3(int i1, int i2, int i3);
-/* Return the maximum of three integers.
-*/
-int max3(int i1, int i2, int i3);
 /* Return the minimum of four integers.
 */
 int min4(int i1, int i2, int i3, int i4);
+/* Return the maximum of three integers.
+*/
+int max3(int i1, int i2, int i3);
+/* Return the maximum of four integers.
+*/
+int max4(int i1, int i2, int i3, int i4);
 
 /* Return a path (array of Node*) from this node to the root.
 

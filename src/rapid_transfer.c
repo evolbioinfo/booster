@@ -42,8 +42,9 @@ void compute_transfer_indices_new(Tree *ref_tree, const int n,
     u = ref_leaves[i];                     //Start with a leaf
 
     DB_TRACE(0, "------------------ new heavy -------------------------\n");
-    DB_CALL(0, print_node(u));
-    DB_CALL(0, print_nodes_TIvars(alt_tree->a_nodes, alt_tree->nb_nodes));
+    DB_CALL(0, fprintf(stderr, "ref_tree "); print_node(u));
+    DB_CALL(0, fprintf(stderr, "alt_tree ");
+               print_nodes_TIvars(alt_tree->a_nodes, alt_tree->nb_nodes));
 
     add_heavy_path(u, alt_tree);   //Compute TI on heavy path starting at u
     for(int j=0; j < alt_tree->nb_nodes; j++)
@@ -128,7 +129,7 @@ void reset_heavy_path(Node* u)
        (2*u->subtreesize == parent->subtreesize && is_right_child(u)))
       u = NULL;
     else
-      u = u->neigh[0];         //u in on the heavy side of its parent.
+      u = u->neigh[0];         //u is on the heavy side of its parent.
   }
 }
 
@@ -154,6 +155,9 @@ void add_leaf(Node *leaf)
     {
       path[i-1]->diff += path[i]->diff;              //Push difference down
       path[i-1]->sibling->diff += path[i]->diff+1;   //the node off the path.
+
+      if(path[i]->depth == 0 && path[i]->nneigh == 3)//If a pseudo-root (3-fan),
+        path[i-1]->sibling2->diff += path[i]->diff+1;//set other node off path.
     }
     path[i]->diff = 0;
     DB_TRACE(0, "         "); DB_CALL(0, print_node_TIvars(path[i]));
@@ -191,6 +195,9 @@ void reset_leaf(Node *leaf)
     else
     {
       n->sibling->diff = 0;
+      if(n->sibling2)
+        n->sibling2->diff = 0;
+
       n = n->neigh[0];
     }
   }
@@ -209,10 +216,17 @@ void update_dminmax_on_path(Node** path, int pathlength)
     Node *sib = path[i-1]->sibling;  //The node off the path
     path[i]->d_min = min3(path[i-1]->d_min, sib->d_min + sib->diff,
                           path[i]->d_lazy);
-    DB_TRACE(0, "up: dmin %d ", path[i]->d_min);DB_CALL(0, print_node(path[i]));
-
     path[i]->d_max = max3(path[i-1]->d_max, sib->d_max + sib->diff,
                           path[i]->d_lazy);
+
+    if(path[i]->depth == 0 && path[i]->nneigh == 3)  //Pseudo-root
+    {
+      sib = path[i-1]->sibling2;                     //Other node off the path
+      path[i]->d_min = min(path[i]->d_min, sib->d_min + sib->diff);
+      path[i]->d_max = max(path[i]->d_max, sib->d_max + sib->diff);
+    }
+
+    DB_TRACE(0, "up: dmin %d ", path[i]->d_min);DB_CALL(0, print_node(path[i]));
     DB_TRACE(0, "up: dmax %d\n", path[i]->d_max);
   }
 }
@@ -252,17 +266,23 @@ int min3(int i1, int i2, int i3)
 {
   return min(min(i1, i2), i3);
 }
+/* Return the minimum of four integers.
+*/
+int min4(int i1, int i2, int i3, int i4)
+{
+  return min(min3(i1, i2, i3), i4);
+}
 /* Return the maximum of three integers.
 */
 int max3(int i1, int i2, int i3)
 {
   return max(max(i1, i2), i3);
 }
-/* Return the minimum of four integers.
+/* Return the maximum of four integers.
 */
-int min4(int i1, int i2, int i3, int i4)
+int max4(int i1, int i2, int i3, int i4)
 {
-  return min(min3(i1, i2, i3), i4);
+  return max(max3(i1, i2, i3), i4);
 }
 
 /*

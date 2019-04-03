@@ -2238,7 +2238,7 @@ LeafArray* get_leaves_in_light_subtree(Node *u)
 
     if(u->nneigh > 3)   //Do not support non-binary trees, aside from root
     {                   //(would have to modify use of sibling to do this).
-      fprintf(stderr, "ERROR: internal node has %i (> 2) children.", u->nneigh);
+      fprintf(stderr, "ERROR: internal node has %i (> 2) children.", u->nneigh-1);
 	    Generic_Exit(__FILE__,__LINE__,__FUNCTION__,EXIT_FAILURE);
     }
 
@@ -2344,8 +2344,12 @@ void prepare_rapid_TI_doer(Node* target, Node* orig, Tree* t) {
                           target->neigh[2]->subtreesize;
 
     // Set the sibling if not the root:
-  if(target != t->node0)            //not root
+  if(target != t->node0)               //not root
+  {
     target->sibling = get_sibling(target);
+    if(target->neigh[0]->nneigh == 3)  //parent is pseudo-root (3-fan)
+      target->sibling2 = get_other_sibling(target, target->sibling);
+  }
 
     // Set the rest:
   target->diff = 0;
@@ -2394,8 +2398,8 @@ void print_node_TI(const Node* n) {
 }
 
 void print_node_TIvars(const Node* n) {
-  fprintf(stderr, "d_min: %i d_lazy: %i diff: %i\n", n->d_min, n->d_lazy,
-          n->diff);
+  fprintf(stderr, "d_min: %i d_max: %i d_lazy: %i diff: %i\n", n->d_min,
+          n->d_max, n->d_lazy, n->diff);
 }
 
 /*
@@ -2503,6 +2507,26 @@ Node* get_sibling(Node* u)
   return child1;
 }
 
+/* Return the sibling to this Node that is not the given Node sib.
+Returns NULL if there is not another sibling (the root is not a pseudo-root).
+
+@warning  assume the node is not the root
+*/
+Node* get_other_sibling(Node *n, Node *sib) {
+  assert(n->depth != 0);
+
+  Node *parent = n->neigh[0];
+  if(parent->depth != 0 || parent->nneigh < 3)   // not root or not pseudo-root
+    return NULL;
+
+    //Get the other child of the root:
+  if(parent->neigh[0] != n && parent->neigh[0] != sib)
+    return parent->neigh[0];
+  if(parent->neigh[1] != n && parent->neigh[1] != sib)
+    return parent->neigh[1];
+  return parent->neigh[2];
+}
+
 
 /* - - - - - - - - - - - - - Rerooting Trees - - - - - - - - - - - - - - - - */
 
@@ -2536,6 +2560,7 @@ Node* reroot_tree_at(Tree *t, Node *l) {
   Node* n = l;
   while(n != oldroot) {
   }
+  return n;
 }
 
 
