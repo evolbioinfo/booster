@@ -47,11 +47,11 @@ void compute_transfer_indices_new(Tree *ref_tree, const int n,
                print_nodes_TIvars(alt_tree->a_nodes, alt_tree->nb_nodes));
 
     add_heavy_path(u, alt_tree);   //Compute TI on heavy path starting at u
-    for(int j=0; j < alt_tree->nb_nodes; j++)
-    {
-      if(alt_tree->a_nodes[j]->d_lazy < 0)
-        fprintf(stderr, "NEGATIVE!\n");
-    }
+    //for(int j=0; j < alt_tree->nb_nodes; j++)
+    //{
+    //  if(alt_tree->a_nodes[j]->d_lazy < 0)
+    //    fprintf(stderr, "NEGATIVE!\n");
+    //}
     reset_heavy_path(u);           //Reset TI associated variables on alt_tree
   }
 
