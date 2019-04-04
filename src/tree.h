@@ -31,6 +31,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "io.h"
 #include <ctype.h>
 #include <stdbool.h>
+#include <string.h>
 
 #define	TRUE	1
 #define	FALSE	0
@@ -66,7 +67,7 @@ typedef struct __Node Node;
 typedef struct __Node {
 	char* name;       /* Only set if this is a leaf node. */
 	char* comment;		/* for further use: store any comment (e.g. from NHX format) */
-	int id;			      /* unique id attributed to the node */
+	int id;			      /* unique id attributed to the node (index of node into a_nodes array*/
 	short int nneigh;	/* number of neighbours */
 	struct __Node** neigh;	/* neighbour nodes */
 	struct __Edge** br;	/* corresponding branches going from this node */
@@ -86,7 +87,7 @@ typedef struct __Node {
    int ti_max;       // The (rooted) maximum transfer distance for this subtree.
    LeafArray* lightleaves;   // The leaves in the light children.
    Node* heavychild; // The heaviest child
-   Node* other;     // The corresponding leaf in the other tree
+   Node* other;      // Corresponding leaf in another tree (see set_leaf_bijection())
 } Node;
 
 
@@ -160,6 +161,22 @@ Node* new_node(const char* name, Tree* t, int degree);
 Edge* new_edge(Tree* t);
 Tree* new_tree(int nb_taxa, const char* name);
 Node* graft_new_node_on_branch(Edge* target_edge, Tree* tree, double ratio_from_left, double new_edge_length, char* node_name);
+
+
+/* Replicate only the parts of the given tree important to the computation of
+the rapid Transfer Index.
+*/
+Tree* copy_tree_rapidTI(Tree* t);
+/* Copy the children of the old Node to the new Node.
+@warning  assumes new is already innitialized with copy_node_rapidTI()
+*/
+Tree* copy_tree_rapidTI_rec(Tree* t, Node* oldn, Node* newn);
+/* Copy the Edge data essential to the rapid Transfer Index calculations.
+*/
+Edge* copy_edge_rapidTI(Edge *old, Node *parent, Node *child);
+/* Copy the Node data essential to the rapid Transfer Index calculations.
+*/
+Node* copy_node_rapidTI(Node* old);
 
 
 /* collapsing a branch */
@@ -390,7 +407,7 @@ to point to a LeafArray with all leaves not in the heavychild.
 void setup_heavy_light_subtrees(Node *u);
 
 
-/* Return all leaves coming from the light subtree of this node.
+/* Return a list of Node pointers to the leaves of this subtree.
 
 @warning  user responsible for memory
 */

@@ -50,7 +50,10 @@ void compute_transfer_indices_new(Tree *ref_tree, const int n,
     //for(int j=0; j < alt_tree->nb_nodes; j++)
     //{
     //  if(alt_tree->a_nodes[j]->d_lazy < 0)
+    //  {
     //    fprintf(stderr, "NEGATIVE!\n");
+    //    exit(0);
+    //  }
     //}
     reset_heavy_path(u);           //Reset TI associated variables on alt_tree
   }
@@ -78,14 +81,17 @@ void add_heavy_path(Node *u, Tree *alt_tree)
   while(u)                               //Have not visited the root and have
   {                                      //not seen a heavier sibling
     DB_TRACE(0, "________\n");
-    DB_TRACE(0, "++++++++ "); DB_CALL(0, print_node(u));
+    DB_TRACE(0, "++++++++ children of "); DB_CALL(0, print_node(u));
 
       //Add the leaves from the light subtree:
     if(u->nneigh == 1)                          //a leaf
+    {
+      DB_TRACE(0, "leaf - "); DB_CALL(0, print_node(u));
       add_leaf(u->other);                       //call add_leaf on v
+    }
     else
     {
-      DB_TRACE(0, "following "); DB_CALL(0, printLA(u->lightleaves));
+      DB_TRACE(0, "subtree - "); DB_CALL(0, printLA(u->lightleaves));
       for(int i=0; i < u->lightleaves->i; i++)  //a subtree
         add_leaf(u->lightleaves->a[i]->other);  //add_leaf on leaves in subtree
     }
@@ -96,10 +102,10 @@ void add_heavy_path(Node *u, Tree *alt_tree)
     DB_CALL(0, fprintf(stderr, "++++++++ TI: %i %i\n", u->ti_min, u->ti_max));
 
       //Head upwards:
-    if(u->depth == 0 || u != u->neigh[0]->heavychild)
-      u = NULL;              //u is root or light child
-    else
+    if(u->depth != 0 && u == u->neigh[0]->heavychild)
       u = u->neigh[0];       //u in on the heavy side of its parent.
+    else
+      u = NULL;              //u is root or light child
   }
   DB_TRACE(0, ".....done.....\n");
 }
@@ -158,8 +164,11 @@ void add_leaf(Node *leaf)
     path[i]->diff = 0;
     DB_TRACE(0, "         "); DB_CALL(0, print_node_TIvars(path[i]));
   }
+  DB_TRACE(0, "leaf   : "); DB_CALL(0, print_node(path[0]));
+  DB_TRACE(0, "         "); DB_CALL(0, print_node_TIvars(path[0]));
   leaf->d_lazy += leaf->diff - 1;
   leaf->diff = 0;
+  DB_TRACE(0, "         "); DB_CALL(0, print_node_TIvars(path[0]));
 
     //Follow the path back up to the root, updating the d_min and d_max values
     //for each pair of siblings:
@@ -328,10 +337,7 @@ Compute the edge Transfer Index from the child node transfer index.
 void nodeTI_to_edgeTI(Tree *tree)
 {
   for(int i=0; i < tree->nb_nodes; i++)
-  {
-    Node *n = tree->a_nodes[i];
-    set_edge_TI(n, tree->nb_taxa);
-  }
+    set_edge_TI(tree->a_nodes[i], tree->nb_taxa);
 }
 
 /*

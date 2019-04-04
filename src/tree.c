@@ -280,12 +280,151 @@ Tree* new_tree(int nb_taxa, const char* name) {
 
 	t->a_nodes = (Node**) calloc(2*nb_taxa-1, sizeof(Node*));	/* array of node pointers, enough for a rooted tree */
 	t->a_edges = (Edge**) calloc(2*nb_taxa-2, sizeof(Edge*));	/* array of edge pointers, enough for a rooted tree */
-  t->leaves = allocateLA(nb_taxa);                          /* array of node pointers, enough for the leaves */
+	t->leaves = allocateLA(nb_taxa);                         	/* LeafArray large enough for the leaves */
 	
 	t->node0 = new_node(name, t, 1);	/* this first node _is_ a leaf */
 
 	t->taxname_lookup_table = NULL;
 	return t;
+}
+
+/*
+Replicate only the parts of the given tree important to the computation of
+the rapid Transfer Index (don't copy things like hashtables).
+*/
+Tree* copy_tree_rapidTI(Tree* oldt) {
+  Tree* newt = (Tree*) malloc(sizeof(Tree));
+
+    //Initialize unused stuff:
+  newt->taxa_names = NULL;
+  newt->taxname_lookup_table = NULL;
+  newt->next_avail_node_id = newt->next_avail_edge_id = newt->length_hashtables
+                           = newt->next_avail_taxon_id = 0;
+
+    //Initialize used stuff:
+  newt->nb_taxa = oldt->nb_taxa;
+  newt->a_nodes = (Node**) calloc(2*newt->nb_taxa-1, sizeof(Node*));
+  newt->nb_nodes = oldt->nb_nodes;
+  newt->a_edges = (Edge**) calloc(2*newt->nb_taxa-2, sizeof(Edge*));
+  newt->nb_edges = oldt->nb_edges;
+
+    //Copy basic root variables:
+  newt->node0 = copy_node_rapidTI(oldt->node0);
+  newt->a_nodes[newt->node0->id] = newt->node0;
+
+    //Copy all the nodes (and structure) of the tree:
+  copy_tree_rapidTI_rec(newt, oldt->node0, newt->node0);
+
+  //for(int i=0; i < newt->nb_nodes; i++)
+  //  fprintf(stderr, "node: %p\n", (void*)newt->a_nodes[i]);
+  //  //print_node(newt->a_nodes[i]);
+
+  newt->leaves = allocateLA(oldt->leaves->n);
+  for(int i=0; i < oldt->leaves->i; i++)
+  {
+    addLeafLA(newt->leaves, newt->a_nodes[oldt->leaves->a[i]->id]);
+    assert(newt->leaves->a[i]->id == oldt->leaves->a[i]->id &&
+           newt->leaves->a[i]->nneigh == 1);
+  }
+
+  return newt;
+}
+
+/*
+Copy the children of the old Node to the new Node.
+
+@warning  assumes newn is already innitialized with copy_node_rapidTI()
+*/
+Tree* copy_tree_rapidTI_rec(Tree* newt, Node* oldn, Node* newn) {
+  int start = 1;
+  if(oldn->depth == 0)  //root
+    start = 0;
+
+  for(int i = start; i < oldn->nneigh; i++)
+  {
+    newn->neigh[i] = copy_node_rapidTI(oldn->neigh[i]); //Set child of parent
+    newn->neigh[i]->neigh[0] = newn;                    //Set parent of child
+    newt->a_nodes[newn->neigh[i]->id] = newn->neigh[i];
+
+    Edge *newedge = copy_edge_rapidTI(oldn->neigh[i]->br[0],
+                                      newn, newn->neigh[i]);
+    newt->a_edges[newedge->id] = newedge;
+    newn->br[i] = newedge;
+    newn->neigh[i]->br[0] = newedge;
+    copy_tree_rapidTI_rec(newt, oldn->neigh[i], newn->neigh[i]);
+
+    if(oldn->heavychild == oldn->neigh[i])
+      newn->heavychild = newn->neigh[i];
+  }
+
+    //Set lightleaves for newn:
+  if(newn->nneigh == 1)    //A leaf
+  {
+    newn->lightleaves = allocateLA(1);
+    newn->heavychild = NULL;
+    addLeafLA(newn->lightleaves, newn);
+  }
+  else
+  {
+    newn->lightleaves = allocateLA(0);
+    for(int i = start; i < newn->nneigh; i++)
+      if(newn->neigh[i] != newn->heavychild)
+        newn->lightleaves = concatinateLA(newn->lightleaves,
+                                          get_leaves_in_subtree(newn->neigh[i]),
+                                          true);
+  }
+}
+
+/*
+Copy the Edge data essential to the rapid Transfer Index calculations.
+*/
+Edge* copy_edge_rapidTI(Edge *old, Node *parent, Node *child) {
+  Edge* new = (Edge*) malloc(sizeof(Edge));
+
+  new->id = old->id;
+  new->left = parent;
+  new->right = child;
+  new->transfer_index = old->transfer_index;
+  new->brlen = old->brlen;                           //Unused
+  new->branch_support = old->branch_support;         //Unused
+  new->subtype_counts[0] = old->subtype_counts[0];   //Unused
+  new->subtype_counts[1] = old->subtype_counts[1];   //Unused
+  new->has_branch_support = 0;                       //Unused
+  new->hashtbl[0] = new->hashtbl[1] = NULL;          //Ignore the hashtable.
+  new->had_zero_length = old->had_zero_length;       //Unused
+  new->has_branch_support = old->has_branch_support; //Unused
+  new->topo_depth = old->topo_depth;                 //Unused
+
+  return new;
+}
+
+/*
+Copy the Node data essential to the rapid Transfer Index calculations.
+*/
+Node* copy_node_rapidTI(Node* old) {
+  Node* new = (Node*) malloc(sizeof(Node));
+  int degree = old->nneigh;
+
+  if(old->name) new->name = strdup(old->name); else new->name = NULL;
+  new->comment = NULL;          //Ignore this
+  new->id = old->id;
+  new->nneigh = degree;
+  new->neigh = malloc(degree * sizeof(Node*));
+  new->br = malloc(degree * sizeof(Edge*));
+  new->mheight = old->mheight;
+  new->subtreesize = old->subtreesize;
+  new->depth = old->depth;
+  new->d_lazy = old->d_lazy;
+  new->diff = old->diff;
+  new->d_min = old->d_min;
+  new->d_max = old->d_max;
+  new->ti_min = old->ti_min;
+  new->ti_max = old->ti_max;
+  new->lightleaves = NULL;     //Fill once leaves exist
+  new->heavychild = NULL;      //Set this in copy_tree_rapidTI_rec
+  new->other = NULL;           //To be set with set_leaf_bijection()
+
+  return new;
 }
 
 
@@ -1389,7 +1528,7 @@ Tree *complete_parse_nh(char* big_string, char*** taxname_lookup_table) {
 	update_branch_subtype_counts_from_nodes(mytree); */
 
   // **TODO(kms):     _____________________________________________
-  // Will want to comment these out (quadratic time operations)?
+  // Will want to skip these (quadratic time operations)?
 	update_hashtables_post_alltree(mytree);
 	update_hashtables_pre_alltree(mytree);
 
@@ -1983,10 +2122,11 @@ void free_edge(Edge* edge) {
 
 void free_node(Node* node) {
 	if (node == NULL) return;
-	
+
 	if (node->name) free(node->name);
 	if (node->comment) free(node->comment);
-	
+
+	freeLA(node->lightleaves);
 	free(node->neigh);
 	free(node->br);
 	free(node);
@@ -1995,18 +2135,18 @@ void free_node(Node* node) {
 void free_tree(Tree* tree) {
 	if (tree == NULL) return;
 	int i;
-	for (i=0; i < tree->nb_nodes; i++)
-  {
-    freeLA(tree->a_nodes[i]->lightleaves);
-    free_node(tree->a_nodes[i]);
-  }
+	for (i=0; i < tree->nb_nodes; i++) free_node(tree->a_nodes[i]);
 	for (i=0; i < tree->nb_edges; i++) free_edge(tree->a_edges[i]);
-	for (i=0; i < tree->nb_taxa; i++) free(tree->taxa_names[i]);
-
-	free(tree->taxa_names);
 	free(tree->a_nodes);
 	free(tree->a_edges);
-  freeLA(tree->leaves);
+
+	if(tree->taxa_names)
+	{
+		for (i=0; i < tree->nb_taxa; i++) free(tree->taxa_names[i]);
+		free(tree->taxa_names);
+	}
+
+	freeLA(tree->leaves);
 	free(tree);
 }
 
@@ -2101,8 +2241,12 @@ Allocate a LeafArray of this size.
 */
 LeafArray* allocateLA(int n) {
   LeafArray *la = malloc(sizeof(LeafArray));
+  if(n)
+    la->a = calloc(n, sizeof(Node*));
+  else
+    la->a = NULL;
+
   la->n = n;
-  la->a = calloc(n, sizeof(Node*));
   la->i = 0;
   return la;
 }
@@ -2114,8 +2258,8 @@ Add a leaf to the leaf array.
 void addLeafLA(LeafArray* la, Node* u) {
   if(la->n == la->i)
   {
-	  fprintf(stderr, "Fatal error: adding too many nodes to LeafArray.\n");
-	  Generic_Exit(__FILE__,__LINE__,__FUNCTION__,EXIT_FAILURE);
+    fprintf(stderr, "Fatal error: adding too many nodes to LeafArray.\n");
+    Generic_Exit(__FILE__,__LINE__,__FUNCTION__,EXIT_FAILURE);
   }
 
   la->a[(la->i)++] = u;
@@ -2125,7 +2269,7 @@ void addLeafLA(LeafArray* la, Node* u) {
 Free the array in the  LeafArray.
 */
 void freeLA(LeafArray *la) {
-  free(la->a);
+  if(la->a != NULL) free(la->a);
   free(la);
 }
 
@@ -2133,6 +2277,7 @@ void freeLA(LeafArray *la) {
 Print the nodes in the LeafArray.
 */
 void printLA(LeafArray *la) {
+  fprintf(stderr, "Leaf ");
   print_nodes(la->a, la->i);
 }
 

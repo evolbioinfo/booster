@@ -441,7 +441,8 @@ void tbe(bool rapid, Tree *ref_tree, Tree *ref_raw_tree,
   moved_species_counts = (double*) calloc(m,sizeof(double)); /* array of average branch rate in which each taxon moves */
 
   Tree *alt_tree;
-#pragma omp parallel for private(alt_tree) shared(max_branches_boot, ref_tree, alt_tree_strings, trans_ind_tmp, trans_ind_new, taxname_lookup_table, n, m, moved_species_counts, moved_species_counts_per_branch) schedule(dynamic)
+  Tree *ref_tree_copy;   // For use with parallel computation.
+  #pragma omp parallel for private(alt_tree, ref_tree_copy) shared(ref_tree, max_branches_boot, alt_tree_strings, trans_ind_tmp, trans_ind_new, taxname_lookup_table, n, m, moved_species_counts, moved_species_counts_per_branch) schedule(dynamic)
   for(i_tree=0; i_tree< num_trees; i_tree++){
     if(!quiet) fprintf(stderr,"New bootstrap tree : %d\n",i_tree);
     alt_tree = complete_parse_nh(alt_tree_strings[i_tree], &taxname_lookup_table);
