@@ -3,6 +3,7 @@ GIT_VERSION := $(shell git describe --abbrev=10 --dirty --always --tags)
 
 UNAME := $(shell uname)
 
+#Use -DDEBUG to print debug output.  Use -DNDEBUG to ignore asserts.
 #CFLAGS = -Wall -g -DVERSION=\"$(GIT_VERSION)\" #-DDEBUG 
 #CFLAGS_OMP = -Wall -g -fopenmp
 CFLAGS = -Wall -O3 -DVERSION=\"$(GIT_VERSION)\" -DNDEBUG

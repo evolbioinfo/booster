@@ -441,7 +441,7 @@ void tbe(bool rapid, Tree *ref_tree, Tree *ref_raw_tree,
   moved_species_counts = (double*) calloc(m,sizeof(double)); /* array of average branch rate in which each taxon moves */
 
   Tree *alt_tree;
-  Tree *ref_tree_copy;   // For use with parallel computation.
+  Tree *ref_tree_copy = NULL;   // For use with parallel computation.
   #pragma omp parallel for private(alt_tree, ref_tree_copy) shared(ref_tree, max_branches_boot, alt_tree_strings, trans_ind_tmp, trans_ind_new, taxname_lookup_table, n, m, moved_species_counts, moved_species_counts_per_branch) schedule(dynamic)
   for(i_tree=0; i_tree< num_trees; i_tree++){
     if(!quiet) fprintf(stderr,"New bootstrap tree : %d\n",i_tree);
@@ -456,9 +456,18 @@ void tbe(bool rapid, Tree *ref_tree, Tree *ref_raw_tree,
       continue; /* some files maybe not containing trees */
     }
 
-    if (rapid)
-      compute_transfer_indices_new(ref_tree, n, m, alt_tree,
-                                   trans_ind_tmp[i_tree]);
+    if (rapid) {
+      if(omp_get_num_threads() > 1)        //If parallel, we copy ref_tree
+        ref_tree_copy = copy_tree_rapidTI(ref_tree);
+      else
+        ref_tree_copy = ref_tree;
+    
+      compute_transfer_indices_new(ref_tree_copy, n, m, alt_tree,
+                                   trans_ind_new[i_tree]);
+
+      if(omp_get_num_threads() > 1)
+        free_tree(ref_tree_copy);
+    }
     else
       compute_transfer_indices(ref_tree, n, m, alt_tree, trans_ind_tmp[i_tree],
                                max_branches_boot, moved_species_counts,
@@ -466,8 +475,17 @@ void tbe(bool rapid, Tree *ref_tree, Tree *ref_raw_tree,
                                count_per_branch, dist_cutoff);
 
     //  //Uncomment this to compare methods:
-    //compute_transfer_indices_new(ref_tree, n, m, alt_tree,
+    //if(omp_get_num_threads() > 1)
+    //  ref_tree_copy = copy_tree_rapidTI(ref_tree);
+    //else
+    //  ref_tree_copy = ref_tree;
+    
+    //compute_transfer_indices_new(ref_tree_copy, n, m, alt_tree,
     //                             trans_ind_new[i_tree]);
+
+    //if(omp_get_num_threads() > 1)
+    //  free_tree(ref_tree_copy);
+
     //compute_transfer_indices(ref_tree, n, m, alt_tree, trans_ind_tmp[i_tree],
     //                         max_branches_boot, moved_species_counts,
     //                         moved_species_counts_per_branch,
@@ -475,7 +493,6 @@ void tbe(bool rapid, Tree *ref_tree, Tree *ref_raw_tree,
     //assert_equal_TI(trans_ind_new[i_tree], trans_ind_tmp[i_tree], ref_tree);
 
   }
-
   #pragma omp barrier
 
   int *trans_ind = (int*) calloc(m,sizeof(int)); //array of index sums, one
