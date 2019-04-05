@@ -40,6 +40,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
    (tree structures, tbe algorithm)
 */
 
+//#define COMPARE_TBE_METHODS
+
 void tbe(bool rapid, Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxname_lookup_table, FILE *stat_file, int num_trees, int quiet, double dist_cutoff,int count_per_branch);
 void fbp(Tree *ref_tree, char **alt_tree_strings,char** taxname_lookup_table, int num_trees, int quiet);
 int* species_to_move(Edge* re, Edge* be, int dist, int nb_taxa);
@@ -432,12 +434,16 @@ void tbe(bool rapid, Tree *ref_tree, Tree *ref_raw_tree,
       moved_species_counts_per_branch[i]  = (int*) calloc(n,sizeof(int));
     }
   }
+
   trans_ind_tmp = (int**) calloc(num_trees,sizeof(int*)); /* array of index sums, one per boot tree and branch. Initialized to 0. */
-  trans_ind_new = (int**) calloc(num_trees,sizeof(int*)); /* array of index sums, one per boot tree and branch. Initialized to 0. */
-  for(i_tree=0; i_tree< num_trees; i_tree++){
+  for(i_tree=0; i_tree< num_trees; i_tree++)
     trans_ind_tmp[i_tree]  = (int*) calloc(m,sizeof(int)); /* array of index sums, one per branch. Initialized to 0. */
+  #ifdef COMPARE_TBE_METHODS
+  trans_ind_new = (int**) calloc(num_trees,sizeof(int*)); /* array of index sums, one per boot tree and branch. Initialized to 0. */
+  for(i_tree=0; i_tree< num_trees; i_tree++)
     trans_ind_new[i_tree]  = (int*) calloc(m,sizeof(int)); /* array of index sums, one per branch. Initialized to 0. */
-  }
+  #endif
+
   moved_species_counts = (double*) calloc(m,sizeof(double)); /* array of average branch rate in which each taxon moves */
 
   Tree *alt_tree;
@@ -456,6 +462,7 @@ void tbe(bool rapid, Tree *ref_tree, Tree *ref_raw_tree,
       continue; /* some files maybe not containing trees */
     }
 
+    #ifndef COMPARE_TBE_METHODS
     if (rapid) {
       if(omp_get_num_threads() > 1)        //If parallel, we copy ref_tree
         ref_tree_copy = copy_tree_rapidTI(ref_tree);
@@ -463,7 +470,7 @@ void tbe(bool rapid, Tree *ref_tree, Tree *ref_raw_tree,
         ref_tree_copy = ref_tree;
     
       compute_transfer_indices_new(ref_tree_copy, n, m, alt_tree,
-                                   trans_ind_new[i_tree]);
+                                   trans_ind_tmp[i_tree]);
 
       if(omp_get_num_threads() > 1)
         free_tree(ref_tree_copy);
@@ -474,23 +481,25 @@ void tbe(bool rapid, Tree *ref_tree, Tree *ref_raw_tree,
                                moved_species_counts_per_branch,
                                count_per_branch, dist_cutoff);
 
-    //  //Uncomment this to compare methods:
-    //if(omp_get_num_threads() > 1)
-    //  ref_tree_copy = copy_tree_rapidTI(ref_tree);
-    //else
-    //  ref_tree_copy = ref_tree;
+    #else
+      //This compares the old and rapid methods:
+    if(omp_get_num_threads() > 1)
+      ref_tree_copy = copy_tree_rapidTI(ref_tree);
+    else
+      ref_tree_copy = ref_tree;
     
-    //compute_transfer_indices_new(ref_tree_copy, n, m, alt_tree,
-    //                             trans_ind_new[i_tree]);
+    compute_transfer_indices_new(ref_tree_copy, n, m, alt_tree,
+                                 trans_ind_new[i_tree]);
 
-    //if(omp_get_num_threads() > 1)
-    //  free_tree(ref_tree_copy);
+    if(omp_get_num_threads() > 1)
+      free_tree(ref_tree_copy);
 
-    //compute_transfer_indices(ref_tree, n, m, alt_tree, trans_ind_tmp[i_tree],
-    //                         max_branches_boot, moved_species_counts,
-    //                         moved_species_counts_per_branch,
-    //                         count_per_branch, dist_cutoff);
-    //assert_equal_TI(trans_ind_new[i_tree], trans_ind_tmp[i_tree], ref_tree);
+    compute_transfer_indices(ref_tree, n, m, alt_tree, trans_ind_tmp[i_tree],
+                             max_branches_boot, moved_species_counts,
+                             moved_species_counts_per_branch,
+                             count_per_branch, dist_cutoff);
+    assert_equal_TI(trans_ind_new[i_tree], trans_ind_tmp[i_tree], ref_tree);
+    #endif
 
   }
   #pragma omp barrier
@@ -571,10 +580,15 @@ void tbe(bool rapid, Tree *ref_tree, Tree *ref_raw_tree,
   free(trans_ind);
   for(i_tree=0; i_tree < num_trees;i_tree++){
     free(trans_ind_tmp[i_tree]);
-    free(trans_ind_new[i_tree]);
   }
   free(trans_ind_tmp);
+
+  #ifdef COMPARE_TBE_METHODS
+  for(i_tree=0; i_tree < num_trees;i_tree++){
+    free(trans_ind_new[i_tree]);
   free(trans_ind_new);
+  #endif
+
   free(moved_species_counts);
 }
 
