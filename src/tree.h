@@ -242,7 +242,8 @@ void parse_substring_into_node(char* in_str, int begin, int end, Node* current_n
 Tree* parse_nh_string(char* in_str);
 
 /* complete parse tree: parse NH string, update hashtables and subtype counts */
-Tree *complete_parse_nh(char* big_string, char*** taxname_lookup_table);
+Tree *complete_parse_nh(char* big_string, char*** taxname_lookup_table,
+                        bool skip_hashtables);
 
 
 /* taxname lookup table functions */

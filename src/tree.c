@@ -1512,7 +1512,8 @@ Tree* parse_nh_string(char* in_str) {
 } /* end parse_nh_string */
 
 
-Tree *complete_parse_nh(char* big_string, char*** taxname_lookup_table) {
+Tree *complete_parse_nh(char* big_string, char*** taxname_lookup_table,
+                        bool skip_hashtables) {
 	/* trick: iff taxname_lookup_table is NULL, we set it according to the tree read, otherwise we use it as the reference taxname lookup table */
 	int i;
  	Tree* mytree = parse_nh_string(big_string); 
@@ -1523,39 +1524,36 @@ Tree *complete_parse_nh(char* big_string, char*** taxname_lookup_table) {
 	mytree->taxname_lookup_table = *taxname_lookup_table;
 
 	update_bootstrap_supports_from_node_names(mytree);
-	/* update_subtype_counts_post_alltree(mytree);
-	update_subtype_counts_pre_alltree(mytree);
-	update_branch_subtype_counts_from_nodes(mytree); */
 
-  // **TODO(kms):     _____________________________________________
-  // Will want to skip these (quadratic time operations)?
-	update_hashtables_post_alltree(mytree);
-	update_hashtables_pre_alltree(mytree);
+  // Skip these (quadratic-time operations) for the rapid TBE calculation:
+  if(!skip_hashtables)
+  {
+	  update_hashtables_post_alltree(mytree);
+	  update_hashtables_pre_alltree(mytree);
 
-	update_node_heights_post_alltree(mytree);
-	update_node_heights_pre_alltree(mytree);
+	  update_node_heights_post_alltree(mytree);
+	  update_node_heights_pre_alltree(mytree);
 
-	/* for all branches in the tree, we should assert that the sum of the number of taxa on the left
-	   and on the right of the branch is equal to tree->nb_taxa */
-	for (i = 0; i < mytree->nb_edges; i++)
-		if(!mytree->a_edges[i]->had_zero_length)
-			assert(mytree->a_edges[i]->hashtbl[0]->num_items
-			     + mytree->a_edges[i]->hashtbl[1]->num_items
-			    == mytree->nb_taxa);
+	  /* for all branches in the tree, we should assert that the sum of the number of taxa on the left
+	     and on the right of the branch is equal to tree->nb_taxa */
+	  for (i = 0; i < mytree->nb_edges; i++)
+	  	if(!mytree->a_edges[i]->had_zero_length)
+	  		assert(mytree->a_edges[i]->hashtbl[0]->num_items
+	  		     + mytree->a_edges[i]->hashtbl[1]->num_items
+	  		    == mytree->nb_taxa);
 
 
-	/* now for all the branches we can delete the **left** hashtables, because the information is redundant and
-	   we have the equal_or_complement function to compare hashtables */
+	  /* now for all the branches we can delete the **left** hashtables, because the information is redundant and
+	     we have the equal_or_complement function to compare hashtables */
 
-	for (i = 0; i < mytree->nb_edges; i++) {
-		free_id_hashtable(mytree->a_edges[i]->hashtbl[0]); 
-		mytree->a_edges[i]->hashtbl[0] = NULL;
-	}
+	  for (i = 0; i < mytree->nb_edges; i++) {
+	  	free_id_hashtable(mytree->a_edges[i]->hashtbl[0]); 
+	  	mytree->a_edges[i]->hashtbl[0] = NULL;
+	  }
 
-	/* topological depths of branches */
-	update_all_topo_depths_from_hashtables(mytree);
-
-  // **TODO end       _____________________________________________
+	  /* topological depths of branches */
+	  update_all_topo_depths_from_hashtables(mytree);
+  }
 
   prepare_rapid_TI(mytree);  //Set up for rapid Transfer Index computation.
 

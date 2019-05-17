@@ -284,10 +284,14 @@ int main (int argc, char* argv[]) {
   fclose(intree_file);
 
   /* and then feed this string to the parser */
+  bool rapid = false;
+  if(strcmp(algo, "rtbe"))
+    rapid = true;
+
   char** taxname_lookup_table = NULL;
-  ref_tree  = complete_parse_nh(big_string, &taxname_lookup_table); /* sets taxname_lookup_table en passant */
+  ref_tree  = complete_parse_nh(big_string, &taxname_lookup_table, rapid); /* sets taxname_lookup_table en passant */
   if(out_raw_tree !=NULL){
-    ref_raw_tree  = complete_parse_nh(big_string, &taxname_lookup_table); /* sets taxname_lookup_table en passant */
+    ref_raw_tree  = complete_parse_nh(big_string, &taxname_lookup_table, rapid); /* sets taxname_lookup_table en passant */
   }
 
 
@@ -371,7 +375,7 @@ void fbp(Tree *ref_tree, char **alt_tree_strings,char** taxname_lookup_table, in
 #pragma omp parallel for private( j, alt_tree, support) shared(nb_found, hm, ref_tree, alt_tree_strings, taxname_lookup_table, quiet, num_trees) schedule(dynamic)
   for(i_tree=0; i_tree< num_trees; i_tree++){
     if(!quiet) fprintf(stderr,"New bootstrap tree : %d\n",i_tree);
-    alt_tree = complete_parse_nh(alt_tree_strings[i_tree], &taxname_lookup_table);
+    alt_tree = complete_parse_nh(alt_tree_strings[i_tree], &taxname_lookup_table, false);
     
     if (alt_tree == NULL) {
       fprintf(stderr,"Not a correct NH tree (%d). Skipping.\n%s\n",i_tree,alt_tree_strings[i_tree]);
@@ -451,7 +455,7 @@ void tbe(bool rapid, Tree *ref_tree, Tree *ref_raw_tree,
   #pragma omp parallel for private(alt_tree, ref_tree_copy) shared(ref_tree, max_branches_boot, alt_tree_strings, trans_ind_tmp, trans_ind_new, taxname_lookup_table, n, m, moved_species_counts, moved_species_counts_per_branch) schedule(dynamic)
   for(i_tree=0; i_tree< num_trees; i_tree++){
     if(!quiet) fprintf(stderr,"New bootstrap tree : %d\n",i_tree);
-    alt_tree = complete_parse_nh(alt_tree_strings[i_tree], &taxname_lookup_table);
+    alt_tree = complete_parse_nh(alt_tree_strings[i_tree], &taxname_lookup_table, rapid);
     
     if (alt_tree == NULL) {
       fprintf(stderr,"Not a correct NH tree (%d). Skipping.\n%s\n",i_tree,alt_tree_strings[i_tree]);
