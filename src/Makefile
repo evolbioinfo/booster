@@ -5,7 +5,7 @@ UNAME := $(shell uname)
 
 #Use -DDEBUG to print debug output.  Use -DNDEBUG to ignore asserts.
 #CFLAGS = -Wall -g -DVERSION=\"$(GIT_VERSION)\" #-DDEBUG 
-#CFLAGS_OMP = -Wall -g -fopenmp
+#CFLAGS_OMP = -Wall -g -fopenmp #-DDEBUG
 CFLAGS = -Wall -O3 -DVERSION=\"$(GIT_VERSION)\" -DNDEBUG
 CFLAGS_OMP = -Wall -O3 -fopenmp -DNDEBUG
 
@@ -32,7 +32,7 @@ ifeq ($(UNAME),Darwin)
 endif
 
 LIBS = -lm
-OBJS = hashtables_bfields.o  tree.o stats.o prng.o hashmap.o version.o sort.o io.o tree_utils.o bitset_index.o rapid_transfer.o debug.o kludge.o
+OBJS = hashtables_bfields.o  tree.o stats.o prng.o hashmap.o version.o sort.o io.o tree_utils.o bitset_index.o rapid_transfer.o heavy_paths.o debug.o kludge.o
 
 # default target
 ALL = booster
