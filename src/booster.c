@@ -428,7 +428,7 @@ void tbe(bool rapid, Tree *ref_tree, Tree *ref_raw_tree,
   double *moved_species_counts;  /* array of average branch rate in which each taxon moves */
   /** Max number of branches we can see in the bootstrap tree: If it has no multifurcation : binary tree--> ntax*2-2 (if rooted...) */
   int max_branches_boot = ref_tree->nb_taxa*2-2;
-  
+
   /* array a[i][j] of number of bootstrap tree from which each taxon j moves around the branch i and that are closer than given distance */
   int **moved_species_counts_per_branch = NULL;
 
@@ -474,7 +474,7 @@ void tbe(bool rapid, Tree *ref_tree, Tree *ref_raw_tree,
         ref_tree_copy = ref_tree;
     
       compute_transfer_indices_new(ref_tree_copy, n, m, alt_tree,
-                                   trans_ind_tmp[i_tree]);
+                                   trans_ind_tmp[i_tree], i_tree);
 
       if(omp_get_num_threads() > 1)
         free_tree(ref_tree_copy);
@@ -493,7 +493,7 @@ void tbe(bool rapid, Tree *ref_tree, Tree *ref_raw_tree,
       ref_tree_copy = ref_tree;
     
     compute_transfer_indices_new(ref_tree_copy, n, m, alt_tree,
-                                 trans_ind_new[i_tree]);
+                                 trans_ind_new[i_tree], i_tree);
 
     if(omp_get_num_threads() > 1)
       free_tree(ref_tree_copy);

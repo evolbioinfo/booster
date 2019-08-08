@@ -2698,74 +2698,53 @@ Node* get_other_sibling(Node *n, Node *sib) {
   return parent->neigh[2];
 }
 
-
-/* - - - - - - - - - - - - - Rerooting Trees - - - - - - - - - - - - - - - - */
-
-// !!!UNFINISHED!!! and unused
-
-/*
-Reroot the given tree at the given leaf.
-
-@warning !!!UNFINISHED!!!
+/* Return the minimum of two integers.
 */
-Node* reroot_tree_at(Tree *t, Node *l) {
-    //Attach the new root.
-	Node* oldroot = t->node0;
-	Node* newroot = new_node("root", t, 2);
-	t->node0 = newroot;
-	
-	Edge* edge = l->br[0];       //The parent branch to the leaf
-  edge->right = edge->left;
-
-
-  /*
-	Edge* new_br = new_edge(t);
-	new_br->left = newroot;
-	new_br->right = oldroot;
-	new_br->brlen = MIN_BRLEN;
-	new_br->had_zero_length = 1;
-	new_br->has_branch_support = 0;
-  */
-
-    //Traverse the tree from the leaf to the root, re-orienting the neighbors:
-  Node* n = l;
-  while(n != oldroot) {
-  }
-  return n;
+int min(int i1, int i2)
+{
+  if(i1 < i2)
+    return i1;
+  return i2;
+}
+/* Return the maximum of two integers.
+*/
+int max(int i1, int i2)
+{
+  if(i1 > i2)
+    return i1;
+  return i2;
+}
+/* Return the minimum of three integers.
+*/
+int min3(int i1, int i2, int i3)
+{
+  return min(min(i1, i2), i3);
+}
+/* Return the minimum of four integers.
+*/
+int min4(int i1, int i2, int i3, int i4)
+{
+  return min(min3(i1, i2, i3), i4);
+}
+/* Return the maximum of three integers.
+*/
+int max3(int i1, int i2, int i3)
+{
+  return max(max(i1, i2), i3);
+}
+/* Return the maximum of four integers.
+*/
+int max4(int i1, int i2, int i3, int i4)
+{
+  return max(max3(i1, i2, i3), i4);
 }
 
+/* - - - - - - - - - - - - - Using Heavy Paths - - - - - - - - - - - - - - - */
 
-/*
-Return a child of the root that is a leaf. Otherwise, follow a path to a leaf.
+/* Verify that all the leaves were reached in the heavypath decomposition.
 */
-Node* get_pseudoroot_leaf(Tree *t) {
-  for(int i=0; i < t->node0->nneigh; i++)
-    if(t->node0->neigh[i]->nneigh == 1)   //The child is a leaf
-      return t->node0->neigh[i];
-
-    //None of the children were a leaf, so choose a random leaf from a subtree:
-  return t->node0->neigh[0]->lightleaves->a[0];
-}
-
-
-/* - - - Hashmap for mapping nodes for ref_tree to nodes of alt_tree - - - - */
-
-// !!!UNUSED and UNFINISHED!!!
-
-/*
-Build a hashmap mapping leaf name to leaves of tree2.
-
-@warning  assumes the leaves have the same names as leaves in tree2
-*/
-map_t map_tnames_to_leaves(LeafArray* leaves1, LeafArray* leaves2) {
-  map_t h = hashmap_new();
-
-  for(int i=0; i < leaves1->i; i++)
-    hashmap_put(h, leaves1->a[i]->name, leaves2->a[i]);
-  return h;
-}
-
-void free_leaf_hashmap(map_t leafmap) {
-  hashmap_iterate(leafmap, &free_hashmap_data, NULL);
-  hashmap_free(leafmap);
+void verify_all_leaves_touched(Tree *t)
+{
+  for(int i=0; i < t->nb_nodes; i++)
+    assert(t->a_nodes[i]->path->node->id == t->a_nodes[i]->id);
 }

@@ -28,6 +28,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #include "hashtables_bfields.h"	/* for the hashtables to store taxa names on the branches */
 #include "hashmap.h"
+#include "heavy_paths.h"
 #include "io.h"
 #include <ctype.h>
 #include <stdbool.h>
@@ -45,6 +46,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 /* TYPES */
 typedef struct __LeafArray LeafArray;
+typedef struct __Path Path;
 
 /* Every node in our binary trees has several neighbours with indices  0, 1, 2.... We allow polytomies of any degree.
    An internal node with no multifurcation has 3 outgoing directions/neighbours.
@@ -81,6 +83,10 @@ typedef struct __Node {
                     // (Pv is the path from v to the root)
    int d_min;       // Minimum TI found in this subtree
    int d_max;       // Maximum TI found in this subtree (used for unrooted TI)
+
+         // Variables used for rapid transfer index calculation on the heavypath
+         // decomposition for alt_tree:
+   Path* path;      // Corresponding Path from the heavypath tree for this leaf.
 
          // Variables used for rapid transfer index calculation on ref_tree:
    int ti_min;       // The (rooted) transfer index for this node.
@@ -506,31 +512,30 @@ Returns NULL if there is not another sibling (the root is not a pseudo-root).
 */
 Node* get_other_sibling(Node *n, Node *sib);
 
-/* - - - - - - - - - - - - - Rerooting Trees - - - - - - - - - - - - - - - - */
 
-// !!!UNFINISHED!!! and unused
-
-/* Reroot the given tree at the given leaf.
-@warning !!!UNFINISHED!!!
+/* Return the minimum of two integers.
 */
-Node* reroot_tree_at(Tree *t, Node *l);
-
-/* Return a child of the root that is a leaf. Otherwise, follow a path to a
-leaf.
+int min(int i1, int i2);
+/* Return the maximum of two integers.
 */
-Node* get_pseudoroot_leaf(Tree *t);
-
-
-/* - - - Hashmap for mapping nodes for ref_tree to nodes of alt_tree - - - - */
-
-// UNUSED!!!
-
-/*
-Build a hashmap mapping leaf name to leaves of tree2.
-
-@warning  assumes the leaves have the same names as leaves in tree2
+int max(int i1, int i2);
+/* Return the minimum of three integers.
 */
-map_t map_tnames_to_leaves(LeafArray* leaves1, LeafArray* leaves2);
-void free_leaf_hashmap(map_t leafmap);
+int min3(int i1, int i2, int i3);
+/* Return the minimum of four integers.
+*/
+int min4(int i1, int i2, int i3, int i4);
+/* Return the maximum of three integers.
+*/
+int max3(int i1, int i2, int i3);
+/* Return the maximum of four integers.
+*/
+int max4(int i1, int i2, int i3, int i4);
 
-#endif /* _TREE_H_ */
+/* - - - - - - - - - - - - - Using Heavy Paths - - - - - - - - - - - - - - - */
+
+/* Verify that all the leaves were reached in the heavypath decomposition.
+*/
+void verify_all_leaves_touched(Tree *t);
+
+#endif

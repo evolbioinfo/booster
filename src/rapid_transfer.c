@@ -2,6 +2,7 @@
 Here we implement the faster, tree traversal based, Transfer Index computation.
 */
 #include "rapid_transfer.h"
+#include "heavy_paths.h"
 
 
 /*
@@ -23,9 +24,16 @@ At the end, transfer_index[i] will have the transfer index for edge i.
 */
 void compute_transfer_indices_new(Tree *ref_tree, const int n,
                                   const int m, Tree *alt_tree,
-                                  int *transfer_index)
+                                  int *transfer_index, int iteration)
 {
   set_leaf_bijection(ref_tree, alt_tree);  //Map leaves between the two trees
+
+  Path* heavypath_root = heavy_decomposition(alt_tree->node0, 0);
+  verify_all_leaves_touched(alt_tree);
+  char filename[15];
+  sprintf(filename, "hptree_%i.dot", iteration);
+  print_HPT_dot(heavypath_root, alt_tree->node0, filename);
+  exit(1);
 
   DB_CALL(0, print_nodes_post_order(ref_tree));
   DB_TRACE(0, "alt_tree:\n");
@@ -41,20 +49,62 @@ void compute_transfer_indices_new(Tree *ref_tree, const int n,
   {
     u = ref_leaves[i];                     //Start with a leaf
 
-    DB_TRACE(0, "------------------ new heavy -------------------------\n");
+    DB_TRACE(0, "------------------ new heavy path ------------------------\n");
     DB_CALL(0, fprintf(stderr, "ref_tree "); print_node(u));
     DB_CALL(0, fprintf(stderr, "alt_tree ");
                print_nodes_TIvars(alt_tree->a_nodes, alt_tree->nb_nodes));
 
     add_heavy_path(u, alt_tree);   //Compute TI on heavy path starting at u
-    //for(int j=0; j < alt_tree->nb_nodes; j++)
-    //{
-    //  if(alt_tree->a_nodes[j]->d_lazy < 0)
-    //  {
-    //    fprintf(stderr, "NEGATIVE!\n");
-    //    exit(0);
-    //  }
-    //}
+    reset_heavy_path(u);           //Reset TI associated variables on alt_tree
+  }
+
+  nodeTI_to_edgeTI(ref_tree);                //Move node values to the edges
+  edgeTI_to_array(ref_tree, transfer_index); //Copy edge values into the array
+}
+
+
+/*
+Compute the Transfer Index (TI) for all edges, comparing a reference tree to
+an alternative balanced (bootstrap) tree.  This does not do a heavypath
+decomposition of the aslternative tree.
+
+This is the faster version that is based on assigning an index by traversing
+the ref_tree.
+We compute the rooted TI using the rooted Transfer Distance (TD). The rooted
+TD between node u in ref_tree and node v in alt_tree is the size of symmetric
+difference L(u)-L(v) U L(v)-L(u) (where L(u) is the leaf set in the subtree
+rooted at u).
+
+We start by computing the TI for a leaf u. Then the TI is computed for parent
+u', as long as u is the "heavy" child of u'. This is repeated, starting at
+each leaf.
+
+At the end, transfer_index[i] will have the transfer index for edge i.
+*/
+void compute_transfer_indices_new_BALANCED(Tree *ref_tree, const int n,
+                                           const int m, Tree *alt_tree,
+                                           int *transfer_index)
+{
+  DB_CALL(0, print_nodes_post_order(ref_tree));
+  DB_TRACE(0, "alt_tree:\n");
+  DB_CALL(0, print_nodes_post_order(alt_tree));
+
+  Node** ref_leaves = ref_tree->leaves->a; //Leaves in ref_tree
+
+    //Compute the TI for each node, following paths from leaves in ref_tree up
+    //to the root, calling add_leaf on leaves from pendant subtrees. At the end
+    //of each loop, the TI will be the value of d_min at the root of alt_tree.
+  Node* u;                                 //Node to follow to root of ref_tree
+  for(int i=0; i < ref_tree->nb_taxa; i++)
+  {
+    u = ref_leaves[i];                     //Start with a leaf
+
+    DB_TRACE(0, "------------------ new heavy path ------------------------\n");
+    DB_CALL(0, fprintf(stderr, "ref_tree "); print_node(u));
+    DB_CALL(0, fprintf(stderr, "alt_tree ");
+               print_nodes_TIvars(alt_tree->a_nodes, alt_tree->nb_nodes));
+
+    add_heavy_path(u, alt_tree);   //Compute TI on heavy path starting at u
     reset_heavy_path(u);           //Reset TI associated variables on alt_tree
   }
 
@@ -73,8 +123,8 @@ void edgeTI_to_array(Tree *tree, int *transfer_index)
 }
 
 /*
-Follow a leaf in ref_tree up to the root.  Call add_leaf on the leaves in the
-subtrees off the path.
+Follow a leaf u in ref_tree up to the root along its heavy path in ref_tree.
+Call add_leaf on the leaves in the subtrees off the path.
 */
 void add_heavy_path(Node *u, Tree *alt_tree)
 {
@@ -84,10 +134,11 @@ void add_heavy_path(Node *u, Tree *alt_tree)
     DB_TRACE(0, "++++++++ children of "); DB_CALL(0, print_node(u));
 
       //Add the leaves from the light subtree:
-    if(u->nneigh == 1)                          //a leaf
-    {
+    if(u->nneigh == 1)                          //u is a leaf in ref_tree, so
+    {                                           //can't be heavier than sibling
       DB_TRACE(0, "leaf - "); DB_CALL(0, print_node(u));
-      add_leaf(u->other);                       //call add_leaf on v
+      add_leaf(u->other);                       //add_leaf on v (in alt_tree)
+      add_leaf_HPT(u->other);
     }
     else
     {
@@ -176,6 +227,108 @@ void add_leaf(Node *leaf)
   free(path);
 }
 
+/*
+Add the given leaf (from alt_tree) to the set L(v) for all v on a path from
+leaf to the root.
+*/
+void add_leaf_HPT(Node* leaf)
+{
+  assert_is_leaf(leaf);
+
+    //Follow the paths in the HPT to the root of the root PT, updating the
+    //d_lazy values with the diff values, subtracting 1 on the heavypaths, but
+    //adding 1 to the diff values for pendant subtrees:
+
+    //Go down the path, pushing down and modifying diff values as we go:
+  Path** path = path_to_root_HPT(leaf->path);
+  int pathlen = path[0]->total_depth;
+  for(int i = pathlen-1; i > 1; i--)
+  {
+    if(path[i]->node)                 //leaf of PT (points to node in alt_tree)
+    {
+      path[i]->d_lazy += path[i]->diff_path - 1;
+      path[i-1] += path[i]->diff_subtree;
+    }
+    else                              //not leaf of PT
+    {
+      if(path[i-1] == path[i]->right) //child in PT and right child on path
+      {
+        path[i]->left->diff_path += path[i]->diff_path - 1;
+        path[i]->left->diff_subtree += path[i]->diff_subtree + 1;
+      }
+      else                            //child in PT and left child on path
+      {
+        assert(path[i-1] == path[i]->left);
+        path[i]->right->diff_path += path[i]->diff_path + 1;
+        path[i]->right->diff_subtree += path[i]->diff_subtree + 1;
+      }
+    }
+
+    path[i]->diff_path = path[i]->diff_subtree = 0;
+  }
+  assert(path[0]->node && path[0]->child_heavypath == NULL &&
+         path[0]->left == NULL && path[0]->right == NULL);       //HPT leaf
+  path[0]->d_lazy += path[0]->diff_path - 1;
+  path[0]->diff_path = path[0]->diff_subtree = 0;
+
+    //Go up the path, updating the min and max values along the way:
+  path[0]->d_min_path = path[0]->d_min_subtree = path[0]->d_min
+    = path[0]->d_lazy;
+  path[0]->d_max_path = path[0]->d_max_subtree = path[0]->d_max
+    = path[0]->d_lazy;
+
+  for(int i=1; i < pathlen; i++)
+  {
+    if(path[i]->child_heavypath)                //leaf of a PT
+    {
+      path[i]->d_min_path = path[i]->d_lazy;
+      path[i]->d_min_subtree = path[i]->child_heavypath->d_min;
+    }
+    else
+    {
+      assert(path[i]->left && path[i]->right);  //internal PT node
+      path[i]->d_min_path = min(path[i]->left->d_min_path +
+                                path[i]->left->diff_path,
+                                path[i]->right->d_min_path +
+                                path[i]->left->diff_path);
+      path[i]->d_min_subtree = min(path[i]->left->d_min_subtree +
+                                   path[i]->left->diff_subtree,
+                                   path[i]->right->d_min_subtree +
+                                   path[i]->left->diff_subtree);
+    }
+    
+    path[i]->d_min = min(path[i]->d_min_path, path[i]->d_min_subtree);
+  }
+}
+
+/*
+Build a path from this Path leaf up to the root of the HPT, following each
+PT to it's root.
+*/
+Path** path_to_root_HPT(Path* leaf)
+{
+  int pathlen = leaf->total_depth+1;
+  Path** path_to_root = calloc(pathlen, sizeof(Path*));
+  int i_path = 0;
+
+  Path* w = leaf;
+  while(w != NULL)                    //traverse up between PTs
+  {
+    while(1)                          //traverse up each PT
+    {
+      path_to_root[i_path++] = w;
+      if(w->parent == NULL)
+        break;
+
+      w = w->parent;
+    }
+
+    w = w->parent_heavypath;
+  }
+  assert(i_path == pathlen);
+
+  return path_to_root;
+}
 
 /*
 Reset the d_min, d_max, d_lazy, and diff values for the path from the given
@@ -251,47 +404,6 @@ void assert_is_leaf(Node* leaf)
   }
 }
 
-
-/* Return the minimum of two integers.
-*/
-int min(int i1, int i2)
-{
-  if(i1 < i2)
-    return i1;
-  return i2;
-}
-/* Return the maximum of two integers.
-*/
-int max(int i1, int i2)
-{
-  if(i1 > i2)
-    return i1;
-  return i2;
-}
-/* Return the minimum of three integers.
-*/
-int min3(int i1, int i2, int i3)
-{
-  return min(min(i1, i2), i3);
-}
-/* Return the minimum of four integers.
-*/
-int min4(int i1, int i2, int i3, int i4)
-{
-  return min(min3(i1, i2, i3), i4);
-}
-/* Return the maximum of three integers.
-*/
-int max3(int i1, int i2, int i3)
-{
-  return max(max(i1, i2), i3);
-}
-/* Return the maximum of four integers.
-*/
-int max4(int i1, int i2, int i3, int i4)
-{
-  return max(max3(i1, i2, i3), i4);
-}
 
 /*
 Return a path (array of Node*) from this node to the root.
