@@ -59,12 +59,19 @@ void edgeTI_to_array(Tree *tree, int *transfer_index);
 
 /* Follow a leaf in ref_tree up to the root.  Call add_leaf on the leaves in the
 subtrees off the path.
+
+If use_HPT is false, then assume a balanced alt_tree, otherwise use a heavypath
+tree on the alt_tree.
 */
-void add_heavy_path(Node* u, Tree* alt_tree);
+void add_heavy_path(Node* u, Tree* alt_tree, int use_HPT);
+
 /* Follow a leaf in ref_tree up to the root. Call reset_leaf on the leaves in
 the subtrees off the path.
+
+If use_HPT is false, then assume balanced alt_tree, otherwise update reset
+values on the HeavyPath Tree.
 */
-void reset_heavy_path(Node* u);
+void reset_heavy_path(Node* u, int use_HTP);
 
 /* Add the given leaf (from alt_tree) to the set L(v) for all v on a path from
 leaf to the root.
@@ -96,11 +103,6 @@ Node** path_to_root(Node *n);
 leaf to the root.
 */
 void add_leaf_HPT(Node* leaf);
-
-/* Build a path from this Path leaf up to the root of the HPT, following each
-PT to it's root.
-*/
-Path** path_to_root_HPT(Path* leaf);
 
 /* Return an array mapping the index of a leaf Node in leaves1, to a leaf Node
 from leaves2.

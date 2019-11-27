@@ -76,6 +76,7 @@ typedef struct __Node {
 	double mheight;	/* the height of a node is its min distance to a leaf */
 
          // Variables used for rapid transfer index calculation on alt_tree:
+         // (only in absence of heavypath decomposition and the alt_tree)
    int subtreesize; // Number of leaves in subtree rooted at this node (assume rooted)
    int depth;       // The depth of the node (from the root)
    int d_lazy;      // The lazily updated transfer distance

@@ -4,10 +4,10 @@ GIT_VERSION := $(shell git describe --abbrev=10 --dirty --always --tags)
 UNAME := $(shell uname)
 
 #Use -DDEBUG to print debug output.  Use -DNDEBUG to ignore asserts.
-#CFLAGS = -Wall -g -DVERSION=\"$(GIT_VERSION)\" #-DDEBUG 
-#CFLAGS_OMP = -Wall -g -fopenmp #-DDEBUG
-CFLAGS = -Wall -O3 -DVERSION=\"$(GIT_VERSION)\" -DNDEBUG
-CFLAGS_OMP = -Wall -O3 -fopenmp -DNDEBUG
+CFLAGS = -Wall -g -DVERSION=\"$(GIT_VERSION)\" -DDEBUG -fno-stack-protector
+CFLAGS_OMP = -Wall -g -fopenmp #-DDEBUG
+#CFLAGS = -Wall -O3 -DVERSION=\"$(GIT_VERSION)\" -DNDEBUG
+#CFLAGS_OMP = -Wall -O3 -fopenmp -DNDEBUG
 
 # Compiler: gcc
 ifeq ($(cross),win32)

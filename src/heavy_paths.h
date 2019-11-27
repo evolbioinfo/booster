@@ -2,16 +2,17 @@
 #define __HEAVY_PATHS_H__
 /*
   This is the code that uses heavy paths to help when the alternative tree is
-  not balanced. We use bookkeeping, instead of a minheap, in order to shave a
-  logarithmic factor off of the running time when travelling up the alternate
-  tree from leaf to root.
+  not balanced. We use bookkeeping, instead of a balanced datastructure, to
+  maintain the minimum transfer distance over the whole tree.
+  This will shave a logarithmic factor off of the running time when
+  traveling up the alternate tree from leaf to root.
  
-  A heavy path is split into a tree ("Path Tree" or PT) where each
-  node of the tree represents a subpath of the heavypath. Each subpath knows
-  its min/max value on the subpath, and its min/max value for all the
-  subtrees hanging off the subpath. This way, when a heavy path is updated
-  the min value on the path will decrease by 1, but the min value off the
-  path increase by 1.
+  In the alternate tree, a heavy path is split into a tree ("Path Tree" or
+  PT) where each node of the tree represents a subpath of the heavypath. Each
+  subpath knows its min/max value on the subpath, and its min/max value for
+  all the subtrees hanging off the subpath. This way, when a heavy path is
+  updated the min value on the path will decrease by 1, but the min value off
+  the path increase by 1.
 
   The PTs are joined together into a "HeavyPath Tree" (HPT), where a root of
   a PT is connected to a leaf of another PT using the parent_heavypath and
@@ -28,15 +29,15 @@ typedef struct __Node Node;
   We use the following conventions:
   - the original alt_tree is decomposed into heavypaths
   - a heavypath is represented by a binary tree of Path objects where:
-    * the root of the tree contains information for the entire heavpath
+    * the root of the tree contains information for the entire heavypath
     * the leaves of the tree contain node information for the corresponding
-      node in alt_tree, along with a pointer to the pendant heavpath
+      node in alt_tree, along with a pointer to the pendant heavypath
 
   In other words, a tree of Paths represents a heavypath, where the Path object
-  can be an internal node, the root (which contains the bookkeeping for the
-  entire heavypath), or a leaf.
+  can be an internal node, the root (which contains the summary bookkeeping
+  for the entire heavypath), or a leaf.
   In the case of a leaf, the Path represents the node in alt_tree on the
-  current heavypath, pointed to by node, and the pendant heavy path is
+  current heavypath, pointed to by node, and the pendant heavypath is
   pointed to by child_heavypath.
 */
 typedef struct __Path Path;
@@ -44,8 +45,8 @@ typedef struct __Path {
   int id;          //A unique identifier.
 
     //The structure of the heavypath tree:
-  Path* left;
-  Path* right;
+  Path* left;      //Left child.
+  Path* right;     //Right child.
   Path* parent;
   Path* sibling;
 
@@ -55,20 +56,21 @@ typedef struct __Path {
   Path* child_heavypath;    //The Path tree pendant to this Path.
   Path* parent_heavypath;   //The Path that this PT hangs on.
 
-  int total_depth;          //# of Path structs on the way through all PTs
-                            //(through the entire HPT).
+  int total_depth;          //# of Path structs to root through all PTs
+                            //(# nodes through entire HPT).
 
     //The transfer index (TI) values:
-  int d_lazy;        //The lazily updated transfer distance
+  int d_lazy;        //The lazily updated transfer distance (for PT leaves only)
+                     // NOTE: consider keeping this only on the Node?
   int diff_path;     //Diff to add to subtree rooted on path.
   int diff_subtree;  //Diff to add to pendant subtrees.
 
-  int d_min;         //Minimum TI found in this subtree
-  int d_min_path;    //Min value for nodes an the heavypath itself.
+  int d_min;         //Minimum TI found in this HPT subtree.
+  int d_min_path;    //Min value for the subpath.
   int d_min_subtree; //Min value over all pendant subtrees for this (sub)Path.
 
-  int d_max;         //Maximum TI found in this subtree
-  int d_max_path;    //Max value for nodes an the heavypath itself.
+  int d_max;         //Maximum TI found in this subtree.
+  int d_max_path;    //Max value for the subpath.
   int d_max_subtree; //Max value over all pendant subtrees for this (sub)Path.
 } Path;
 
@@ -90,10 +92,12 @@ link the Path to the corresponding leaf in alt_tree.
 */
 Path* partition_heavypath(Node **n, int length, int depth);
 
-/* Return a Path for the given node of alt_tree.  The Path will be a leaf
-node of the path tree; either the leaf will point to a leaf node of alt_tree,
-or child_heavypath will point to a new Path tree represeting the heavypath
-pendant to the alt_tree node.
+/*
+Return a Path for the given node of alt_tree.  The Path will be a leaf
+node of the path tree.
+Either 1) the leaf will point to a leaf node of alt_tree,
+or     2) child_heavypath will point to a heavypath representing the
+          descendant of the alt_tree node.
 */
 Path* heavypath_leaf(Node *node, int depth);
 
@@ -113,8 +117,24 @@ void print_heavypath(Node **heavypath, int length);
 
 /* Print the Heavy Path Tree (HPT) in dot format.
 */
-void print_HPT_dot(Path* hproot, Node* altroot, char* filename);
+void print_HPT_dot(Path* hproot, Node* altroot, int repid);
 
+
+/* Build a path from this Path leaf up to the root of the HPT, following each
+PT to it's root in turn.
+*/
+Path** path_to_root_HPT(Path* leaf);
+
+/* Return the root of the HPT with the given alt_tree leaf.
+*/
+Path* get_HPT_root(Node* leaf);
+
+
+/*--------------------- OUTPUT FUNCTIONS -------------------------*/
+
+/* Print the given Path node.
+*/
+void print_HPT_node(const Path* n);
 
 /* Recursively print the subPath.
 */
@@ -132,10 +152,10 @@ void print_HPT_node_dot(Path* n, FILE *f);
 
 /* Print a string that formats a heavypath node in a PT.
 */
-void print_HPT_hpnode(Path* n, FILE *f);
+void print_HPT_hpnode_dot(Path* n, FILE *f);
 
 /* Print a string that formats a PT node.
 */
-void print_HPT_ptnode(Path* n, FILE *f);
+void print_HPT_ptnode_dot(Path* n, FILE *f);
 
 #endif
