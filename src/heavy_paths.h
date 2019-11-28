@@ -20,7 +20,9 @@
 */
 
 #include "tree.h"
+#include "limits.h"
 #include "debug.h"
+#include "stdbool.h"
 
 
 typedef struct __Node Node;
@@ -60,8 +62,6 @@ typedef struct __Path {
                             //(# nodes through entire HPT).
 
     //The transfer index (TI) values:
-  int d_lazy;        //The lazily updated transfer distance (for PT leaves only)
-                     // NOTE: consider keeping this only on the Node?
   int diff_path;     //Diff to add to subtree rooted on path.
   int diff_subtree;  //Diff to add to pendant subtrees.
 
@@ -110,6 +110,11 @@ Node** get_heavypath(Node* root, int* length);
 */
 int get_heavypath_length(Node *n);
 
+/* Return True if the (sub)Path corresponds to a leaf of alt_tree (i.e. it is a
+leaf of the HPT).
+*/
+bool is_HPT_leaf(Path *n);
+
 /* Print the given heavypath.
 */
 void print_heavypath(Node **heavypath, int length);
@@ -157,5 +162,9 @@ void print_HPT_hpnode_dot(Path* n, FILE *f);
 /* Print a string that formats a PT node.
 */
 void print_HPT_ptnode_dot(Path* n, FILE *f);
+
+/* Print a descriptive node.
+*/
+void print_HPT_keynode_dot(FILE *f);
 
 #endif

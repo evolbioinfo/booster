@@ -2,7 +2,6 @@
 Here we implement the heavy path decomposition of the alt_tree.
 */
 #include "heavy_paths.h"
-#include "tree.h"
 
 /*
 Allocate a new Path, setting all the default values.
@@ -26,12 +25,11 @@ Path* new_Path()
 
   newpath->total_depth = 0;
 
-  newpath->d_lazy = 0;
   newpath->diff_path = newpath->diff_subtree = 0;
 
   newpath->d_min = 1;
   newpath->d_min_path = 1;
-  newpath->d_min_subtree = 1;
+  newpath->d_min_subtree = 0;
 
   newpath->d_max = 0;
   newpath->d_max_path = 0;
@@ -116,7 +114,6 @@ Path* heavypath_leaf(Node *node, int depth)
   newpath->node = node;           //attach the path to the node
   node->path = newpath;           //attach the node to the path
 
-  newpath->d_lazy = node->subtreesize;
   newpath->d_max = newpath->d_max_path = node->subtreesize;
 
     //Handle an internal alt_tree node with pendant heavypath:
@@ -144,8 +141,9 @@ Path* heavypath_leaf(Node *node, int depth)
       Generic_Exit(__FILE__,__LINE__,__FUNCTION__,EXIT_FAILURE);
     }
 
+    newpath->d_min_subtree = newpath->child_heavypath->d_min;
     newpath->d_max_subtree = newpath->child_heavypath->d_max;
-    newpath->d_min_path = newpath->d_lazy;
+    newpath->d_min_path = node->subtreesize;
     newpath->d_max_path = 1;
   }
   else if(node->nneigh > 3)
@@ -153,10 +151,10 @@ Path* heavypath_leaf(Node *node, int depth)
     fprintf(stderr, "ERROR: This code works for binary trees only.\n");
     Generic_Exit(__FILE__,__LINE__,__FUNCTION__,EXIT_FAILURE);
   }
-  else                              //node is a leaf of alt_tree
-  {
-    newpath->d_max_subtree = 1;
-  }
+  //else                              //node is a leaf of alt_tree
+  //{
+  //  newpath->d_max_subtree = 1;     //NOTE: unnecessary (remove?)
+  //}
 
   return newpath;
 }
@@ -197,6 +195,15 @@ int get_heavypath_length(Node *n)
   return length;
 }
 
+/*
+Return True if the (sub)Path corresponds to a leaf of alt_tree (i.e. it is a
+leaf of the HPT).
+*/
+bool is_HPT_leaf(Path *n)
+{
+  return n->node && !n->child_heavypath; //or (n->node && n->node->nneigh == 1)
+}
+
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 // - - - - - - - - - - - - - - Update Heavypath Tree - - - - - - - - - - - - - -
@@ -226,11 +233,16 @@ void add_leaf_HPT(Node* leaf)
     fprintf(stderr, "down: %i\n", path[i]->id);
     if(path[i]->node)                 //leaf of PT (points to node in alt_tree)
     {
-      path[i-1]->d_lazy += path[i]->diff_subtree;     // -1 when visiting node
-      path[i]->d_lazy += path[i]->diff_path - 1;
+      path[i-1]->diff_path += path[i]->diff_subtree;
+      path[i-1]->diff_subtree += path[i]->diff_subtree;
+      path[i]->d_min_path += path[i]->diff_path - 1;
+      path[i]->d_max_path = path[i]->d_min_path;
     }
     else                              //internal node of PT
     {
+      path[i-1]->diff_path += path[i]->diff_path;
+      path[i-1]->diff_subtree += path[i]->diff_subtree;
+
       if(path[i-1] == path[i]->right) //right child of i is in the path
       {
         path[i]->left->diff_path += path[i]->diff_path - 1;
@@ -248,41 +260,59 @@ void add_leaf_HPT(Node* leaf)
   }
   assert(path[0]->node && path[0]->child_heavypath == NULL &&
          path[0]->left == NULL && path[0]->right == NULL);       //HPT leaf
-  path[0]->d_lazy += path[0]->diff_path - 1;
+  path[0]->d_min_path += path[0]->diff_path - 1;
+  path[0]->d_max_path = path[0]->d_min_path;
   path[0]->diff_path = path[0]->diff_subtree = 0;
 
     //Go up the path, updating the min and max values along the way:
-  path[0]->d_min_path = path[0]->d_min_subtree = path[0]->d_min
-    = path[0]->d_lazy;
-  path[0]->d_max_path = path[0]->d_max_subtree = path[0]->d_max
-    = path[0]->d_lazy;
+  path[0]->d_min = path[0]->d_min_path;
+  path[0]->d_max = path[0]->d_max_path;
 
   for(int i=1; i < pathlen; i++)
   {
     fprintf(stderr, "up: %i\n", path[i]->id);
     if(path[i]->child_heavypath)                //leaf of a PT
-    {
-      path[i]->d_min_path = path[i]->d_lazy;
-      path[i]->d_max_path = path[i]->d_lazy;
+    {                                           //d_min_path already set
       path[i]->d_min_subtree = path[i]->child_heavypath->d_min;
       path[i]->d_max_subtree = path[i]->child_heavypath->d_max;
     }
     else
     {
       assert(path[i]->left && path[i]->right);  //internal PT node
-      Path* child = path[i]->left;
-      int d_min_left = min3(child->d_min_path + child->diff_path,
-                            child->d_min_subtree + child->diff_subtree,
-                            child->d_lazy + child->diff_path);
-      child = path[i]->right;
-      int d_min_right = min3(child->d_min_path + child->diff_path,
-                             child->d_min_subtree + child->diff_subtree,
-                             child->d_lazy + child->diff_path);
-      path[i]->d_min_path = min(d_min_left, d_min_right);
-      path[i]->d_min_subtree = min(path[i]->left->d_min_subtree +
-                                   path[i]->left->diff_subtree,
-                                   path[i]->right->d_min_subtree +
-                                   path[i]->right->diff_subtree);
+      path[i]->d_min_path = min(path[i]->left->d_min_path +
+                                path[i]->left->diff_path,
+                                path[i]->right->d_min_path +
+                                path[i]->right->diff_path);
+      path[i]->d_max_path = max(path[i]->left->d_max_path +
+                                path[i]->left->diff_path,
+                                path[i]->right->d_max_path +
+                                path[i]->right->diff_path);
+
+      if(is_HPT_leaf(path[i]->left))        //left is leaf of alt_tree
+      {
+        path[i]->d_min_subtree = path[i]->right->d_min_subtree +
+                                 path[i]->right->diff_subtree;
+        path[i]->d_max_subtree = path[i]->right->d_max_subtree +
+                                 path[i]->right->diff_subtree;
+      }
+      else if(is_HPT_leaf(path[i]->right))  //right is leaf of alt_tree
+      {
+        path[i]->d_min_subtree = path[i]->left->d_min_subtree +
+                                 path[i]->left->diff_subtree;
+        path[i]->d_max_subtree = path[i]->left->d_max_subtree +
+                                 path[i]->left->diff_subtree;
+      }
+      else
+      {
+        path[i]->d_min_subtree = min(path[i]->left->d_min_subtree +
+                                     path[i]->left->diff_subtree,
+                                     path[i]->right->d_min_subtree +
+                                     path[i]->right->diff_subtree);
+        path[i]->d_max_subtree = max(path[i]->left->d_max_subtree +
+                                     path[i]->left->diff_subtree,
+                                     path[i]->right->d_max_subtree +
+                                     path[i]->right->diff_subtree);
+      }
     }
     
     path[i]->d_min = min(path[i]->d_min_path, path[i]->d_min_subtree);
@@ -374,8 +404,8 @@ edges of alt_tree (not in the HPT) will be solid.
 void print_HPT_dot(Path* hproot, Node* altroot, int repid)
 {
   char filename[15];
-  fprintf(stderr, "REPID: %i\n", repid);
   sprintf(filename, "hptree_%i.dot", repid);
+  fprintf(stderr, "Creating PDF: %s\n", filename);
   FILE *f = fopen(filename, "w");
   if(f == NULL)
   {
@@ -384,6 +414,7 @@ void print_HPT_dot(Path* hproot, Node* altroot, int repid)
   }
 
   fprintf(f, "digraph HPT\n  {\n  center=true;\n");
+  print_HPT_keynode_dot(f);
   print_HPT_subpath_dot(hproot, f);
   print_HPT_subtree_dot(altroot, f);
   fprintf(f, "  }\n");
@@ -495,8 +526,14 @@ void print_HPT_hpnode_dot(Path* n, FILE *f)
             n->id, n->id, n->node->id, n->node->name);
   else
     fprintf(f, "  %i [label=\"%i (%i)", n->id, n->id, n->node->id);
-  fprintf(f, "\n%i %i %i\n%i %i %i", n->d_lazy, n->diff_path, n->diff_subtree,
-          n->d_min, n->d_min_path, n->d_min_subtree);
+
+  fprintf(f, "\n_ %i %i\n", n->diff_path, n->diff_subtree);
+
+  if(n->node->nneigh == 1)              //a leaf of alt_tree
+    fprintf(f, "%i %i x", n->d_min, n->d_min_path);
+  else
+    fprintf(f, "%i %i %i", n->d_min, n->d_min_path, n->d_min_subtree);
+
   fprintf(f, "\"];\n");
 }
 
@@ -511,7 +548,18 @@ void print_HPT_ptnode_dot(Path* n, FILE *f)
 {
   fprintf(f, "  %i [shape=rectangle ", n->id);
   fprintf(f, "label=\"%i", n->id);
-  fprintf(f, "\n%i %i %i\n%i %i %i", n->d_lazy, n->diff_path, n->diff_subtree,
+  fprintf(f, "\n_ %i %i\n%i %i %i", n->diff_path, n->diff_subtree,
           n->d_min, n->d_min_path, n->d_min_subtree);
+  fprintf(f, "\"];\n");
+}
+
+/* Print a node that describes the values in the positions.
+*/
+void print_HPT_keynode_dot(FILE *f)
+{
+  fprintf(f, "  keynode [shape=record ");
+  fprintf(f, "label=\"{node id|{{_|d_min} | ");
+  fprintf(f, "{diff_path|min_path} | ");
+  fprintf(f, "{diff_subtree|min_subtree}}}");
   fprintf(f, "\"];\n");
 }
