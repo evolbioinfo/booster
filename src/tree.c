@@ -335,7 +335,7 @@ Copy the children of the old Node to the new Node.
 
 @warning  assumes newn is already innitialized with copy_node_rapidTI()
 */
-Tree* copy_tree_rapidTI_rec(Tree* newt, Node* oldn, Node* newn) {
+void copy_tree_rapidTI_rec(Tree* newt, Node* oldn, Node* newn) {
   int start = 1;
   if(oldn->depth == 0)  //root
     start = 0;

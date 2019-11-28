@@ -177,7 +177,7 @@ Tree* copy_tree_rapidTI(Tree* t);
 /* Copy the children of the old Node to the new Node.
 @warning  assumes new is already innitialized with copy_node_rapidTI()
 */
-Tree* copy_tree_rapidTI_rec(Tree* t, Node* oldn, Node* newn);
+void copy_tree_rapidTI_rec(Tree* t, Node* oldn, Node* newn);
 /* Copy the Edge data essential to the rapid Transfer Index calculations.
 */
 Edge* copy_edge_rapidTI(Edge *old, Node *parent, Node *child);
