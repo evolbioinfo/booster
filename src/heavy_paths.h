@@ -65,11 +65,9 @@ typedef struct __Path {
   int diff_path;     //Diff to add to subtree rooted on path.
   int diff_subtree;  //Diff to add to pendant subtrees.
 
-  int d_min;         //Minimum TI found in this HPT subtree.
   int d_min_path;    //Min value for the subpath.
   int d_min_subtree; //Min value over all pendant subtrees for this (sub)Path.
 
-  int d_max;         //Maximum TI found in this subtree.
   int d_max_path;    //Max value for the subpath.
   int d_max_subtree; //Max value over all pendant subtrees for this (sub)Path.
 } Path;
@@ -134,6 +132,10 @@ Path** path_to_root_HPT(Path* leaf);
 */
 Path* get_HPT_root(Node* leaf);
 
+/* Reset the path and subtree min and max, along with the diff values for the
+path from the given leaf to the root of the HPT.
+*/
+void reset_leaf_HPT(Node *leaf);
 
 /*--------------------- OUTPUT FUNCTIONS -------------------------*/
 

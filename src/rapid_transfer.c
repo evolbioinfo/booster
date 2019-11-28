@@ -29,6 +29,7 @@ void compute_transfer_indices_new(Tree *ref_tree, const int n,
   set_leaf_bijection(ref_tree, alt_tree);  //Map leaves between the two trees
 
   Path* heavypath_root = heavy_decomposition(alt_tree->node0, 0);
+  //heavy_decomposition(alt_tree->node0, 0);
   verify_all_leaves_touched(alt_tree);     //TEMPORARY!
 
   DB_CALL(0, print_nodes_post_order(ref_tree));
@@ -53,13 +54,11 @@ void compute_transfer_indices_new(Tree *ref_tree, const int n,
 
     add_heavy_path(u, alt_tree, 1); //Compute TI on ref heavypath starting at u
     print_HPT_dot(heavypath_root, alt_tree->node0, 100+i);
-    exit(1);
     reset_heavy_path(u, 1);         //Reset TI associated variables on alt_tree
   }
 
   nodeTI_to_edgeTI(ref_tree);                //Move node values to the edges
   edgeTI_to_array(ref_tree, transfer_index); //Copy edge values into the array
-  exit(1);
 }
 
 
@@ -131,10 +130,10 @@ tree on the alt_tree.
 */
 void add_heavy_path(Node *u, Tree *alt_tree, int use_HPT)
 {
-  int j = 0;  //TEMP
+  //int j = 0;  //TEMP
   Path* hpt_root = get_HPT_root(u->other);
-  fprintf(stderr, "HPT root: ");
-  print_HPT_node(hpt_root);
+  //fprintf(stderr, "HPT root: ");
+  //print_HPT_node(hpt_root);
   while(u)                               //Have not visited the root and have
   {                                      //not seen a heavier sibling
     DB_TRACE(0, "________\n");
@@ -149,8 +148,7 @@ void add_heavy_path(Node *u, Tree *alt_tree, int use_HPT)
       else
         add_leaf(u->other);                     //add_leaf on v (in alt_tree)
 
-      //print_HPT_dot(hpt_root, alt_tree->node0, 1);
-      print_HPT_dot(hpt_root, alt_tree->node0, 30000);
+      //print_HPT_dot(hpt_root, alt_tree->node0, 30000);
     }
     else
     {
@@ -162,14 +160,22 @@ void add_heavy_path(Node *u, Tree *alt_tree, int use_HPT)
         else
           add_leaf(u->lightleaves->a[i]->other);
 
-        print_HPT_dot(hpt_root, alt_tree->node0, 20000+j*100+i);
+        //print_HPT_dot(hpt_root, alt_tree->node0, 20000+j*100+i);
       }
     }
-    j++;
+    //j++;
 
       //Record the transfer index:
-    u->ti_min = alt_tree->node0->d_min;
-    u->ti_max = alt_tree->node0->d_max;
+    if(use_HPT)
+    {
+      u->ti_min = min(hpt_root->d_min_path, hpt_root->d_min_subtree);
+      u->ti_max = max(hpt_root->d_max_path, hpt_root->d_max_subtree);
+    }
+    else
+    {
+      u->ti_min = alt_tree->node0->d_min;
+      u->ti_max = alt_tree->node0->d_max;
+    }
     DB_CALL(0, fprintf(stderr, "++++++++ TI: %i %i\n", u->ti_min, u->ti_max));
 
       //Head upwards:
@@ -185,19 +191,29 @@ void add_heavy_path(Node *u, Tree *alt_tree, int use_HPT)
 Follow a leaf in ref_tree up to the root. Call reset_leaf on the leaves in
 the subtrees off the path.
 
-If use_HPT is false, then assume balanced alt_tree, otherwise update reset
-values on the HeavyPath Tree.
+If use_HPT is false, then assume balanced alt_tree, otherwise reset values on
+the HeavyPath Tree (HPT).
 */
 void reset_heavy_path(Node* u, int use_HPT)
 {
   while(u)                               //Have not visited the root and have
   {                                      //not seen a heavier sibling
       //Add the leaves from the light subtree:
-    if(u->nneigh == 1)       //a leaf
-      reset_leaf(u->other);  //call add_leaf on v
+    if(u->nneigh == 1)        //a leaf
+    {
+      if(use_HPT)
+        reset_leaf_HPT(u->other);       //call add_leaf on the Path for v
+      else
+        reset_leaf(u->other);           //call add_leaf on v
+    }
     else
+    {
       for(int i=0; i < u->lightleaves->i; i++)
-        reset_leaf(u->lightleaves->a[i]->other);
+        if(use_HPT)
+          reset_leaf_HPT(u->lightleaves->a[i]->other);
+        else
+          reset_leaf(u->lightleaves->a[i]->other);
+    }
 
       //Head upwards:
     if(u->depth == 0 || u != u->neigh[0]->heavychild)
