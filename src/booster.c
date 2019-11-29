@@ -445,7 +445,10 @@ void tbe(bool rapid, Tree *ref_tree, Tree *ref_raw_tree,
   trans_ind_tmp = (int**) calloc(num_trees,sizeof(int*)); /* array of index sums, one per boot tree and branch. Initialized to 0. */
   for(i_tree=0; i_tree< num_trees; i_tree++)
     trans_ind_tmp[i_tree]  = (int*) calloc(m,sizeof(int)); /* array of index sums, one per branch. Initialized to 0. */
+
+  bool skip_hashtables = rapid;
   #ifdef COMPARE_TBE_METHODS
+  skip_hashtables = false;
   trans_ind_new = (int**) calloc(num_trees,sizeof(int*)); /* array of index sums, one per boot tree and branch. Initialized to 0. */
   for(i_tree=0; i_tree< num_trees; i_tree++)
     trans_ind_new[i_tree]  = (int*) calloc(m,sizeof(int)); /* array of index sums, one per branch. Initialized to 0. */
@@ -458,7 +461,7 @@ void tbe(bool rapid, Tree *ref_tree, Tree *ref_raw_tree,
   #pragma omp parallel for private(alt_tree, ref_tree_copy) shared(ref_tree, max_branches_boot, alt_tree_strings, trans_ind_tmp, trans_ind_new, taxname_lookup_table, n, m, moved_species_counts, moved_species_counts_per_branch) schedule(dynamic)
   for(i_tree=0; i_tree< num_trees; i_tree++){
     if(!quiet) fprintf(stderr,"New bootstrap tree : %d\n",i_tree);
-    alt_tree = complete_parse_nh(alt_tree_strings[i_tree], &taxname_lookup_table, rapid);
+    alt_tree = complete_parse_nh(alt_tree_strings[i_tree], &taxname_lookup_table, skip_hashtables);
     
     if (alt_tree == NULL) {
       fprintf(stderr,"Not a correct NH tree (%d). Skipping.\n%s\n",i_tree,alt_tree_strings[i_tree]);
