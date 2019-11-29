@@ -28,8 +28,8 @@ void compute_transfer_indices_new(Tree *ref_tree, const int n,
 {
   set_leaf_bijection(ref_tree, alt_tree);  //Map leaves between the two trees
 
-  Path* heavypath_root = heavy_decomposition(alt_tree->node0, 0);
-  //heavy_decomposition(alt_tree->node0, 0);
+  //Path* heavypath_root = heavy_decomposition(alt_tree->node0, 0);
+  heavy_decomposition(alt_tree->node0, 0);
   verify_all_leaves_touched(alt_tree);     //TEMPORARY!
 
   DB_CALL(0, print_nodes_post_order(ref_tree));
@@ -50,10 +50,10 @@ void compute_transfer_indices_new(Tree *ref_tree, const int n,
     DB_CALL(0, fprintf(stderr, "ref_tree start "); print_node(u));
     DB_CALL(0, fprintf(stderr, "alt_tree ");
                print_nodes_TIvars(alt_tree->a_nodes, alt_tree->nb_nodes));
-    print_HPT_dot(heavypath_root, alt_tree->node0, i);
 
+    //print_HPT_dot(heavypath_root, alt_tree->node0, i);
     add_heavy_path(u, alt_tree, 1); //Compute TI on ref heavypath starting at u
-    print_HPT_dot(heavypath_root, alt_tree->node0, 100+i);
+    //print_HPT_dot(heavypath_root, alt_tree->node0, 100+i);
     reset_heavy_path(u, 1);         //Reset TI associated variables on alt_tree
   }
 

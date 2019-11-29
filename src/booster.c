@@ -284,14 +284,17 @@ int main (int argc, char* argv[]) {
   fclose(intree_file);
 
   /* and then feed this string to the parser */
-  bool rapid = false;
-  if(strcmp(algo, "rtbe"))
-    rapid = true;
+  bool rapid = !strcmp(algo, "rtbe");
+
+  bool skip_hashtables = rapid;
+  #ifdef COMPARE_TBE_METHODS
+  skip_hashtables = false;
+  #endif
 
   char** taxname_lookup_table = NULL;
-  ref_tree  = complete_parse_nh(big_string, &taxname_lookup_table, rapid); /* sets taxname_lookup_table en passant */
+  ref_tree  = complete_parse_nh(big_string, &taxname_lookup_table, skip_hashtables); /* sets taxname_lookup_table en passant */
   if(out_raw_tree !=NULL){
-    ref_raw_tree  = complete_parse_nh(big_string, &taxname_lookup_table, rapid); /* sets taxname_lookup_table en passant */
+    ref_raw_tree  = complete_parse_nh(big_string, &taxname_lookup_table, skip_hashtables); /* sets taxname_lookup_table en passant */
   }
 
 
@@ -328,8 +331,8 @@ int main (int argc, char* argv[]) {
 
   if(!quiet)  fprintf(stderr,"Num trees: %d\n",num_trees);
 
-  if(!strcmp(algo,"tbe") || !strcmp(algo, "rtbe")){
-    tbe(!strcmp(algo, "rtbe"), ref_tree, ref_raw_tree, alt_tree_strings, taxname_lookup_table, stat_file, num_trees, quiet, dist_cutoff, count_per_branch);
+  if(!strcmp(algo,"tbe") || rapid){
+    tbe(rapid, ref_tree, ref_raw_tree, alt_tree_strings, taxname_lookup_table, stat_file, num_trees, quiet, dist_cutoff, count_per_branch);
   }else{
     fbp(ref_tree, alt_tree_strings, taxname_lookup_table, num_trees, quiet);
   }
@@ -470,7 +473,7 @@ void tbe(bool rapid, Tree *ref_tree, Tree *ref_raw_tree,
     if (rapid) {
       if(omp_get_num_threads() > 1)        //If parallel, we copy ref_tree
         ref_tree_copy = copy_tree_rapidTI(ref_tree);
-      else
+      else                                 //NOTE: still necessary?
         ref_tree_copy = ref_tree;
     
       compute_transfer_indices_new(ref_tree_copy, n, m, alt_tree,
