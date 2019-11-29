@@ -56,7 +56,7 @@ Usage: ./booster -i <ref tree file (newick)> -b <bootstrap tree file (newick)> [
 Options:
       -i : Input tree file
       -b : Bootstrap tree file (1 file containing all bootstrap trees)
-      -a, --algo  : bootstrap algorithm, tbe (transfer bootstrap) or fbp (Felsenstein bootstrap) (default tbe)
+      -a, --algo  : bootstrap algorithm, rtbe (rapid transfer bootstrap) tbe (transfer bootstrap) or fbp (Felsenstein bootstrap) (default rtbe)
       -o : Output file (optional), default : stdout
       -r, --out-raw : Output file (only with tbe, optional) with raw transfer distance as support values in the form of
                        id|avgdist|depth, default : none
@@ -74,7 +74,7 @@ Options:
 * `-i`: Reference tree file : a reference tree in newick format;
 * `-b`: Bootstrap tree file : a set of bootstrap trees in newick format;
 * `-@`: Number of threads;
-* `-a`: Bootstrap algorithm: `tbe` (Transfer Bootstrap Expectation) or `fbp` (Felsenstein Bootstrap Proportion);
+* `-a`: Bootstrap algorithm: `rtbe` (rapid Transfer Boostrap Expectation) `tbe` (Transfer Bootstrap Expectation) or `fbp` (Felsenstein Bootstrap Proportion);
 * `-S`: Output statistic file;
 * `-r`: If you need to analyze individual average transfer distances of branches computed during a TBE run (`-a tbe`), you can give this option `-r`. In that case, booster will output a tree in newick format in the given file, and that will contain average transfer distances as branch support, in the form `id|avgdist|depth`;
 * `-c`: If you want to characterize the taxa responsible for a given tbe support, for example if you want to known wether a support of 70% is always due the same 30% species that move in all the bootstrap trees or not, you may use this option. It will print a matrix with branch ids in row, taxa in column, and each value is the percentage of bootstrap trees for which: 1) a minimum distance branch closest than the given cutoff (`-d`) exists; and 2) the taxon moves around that branch. Please note that with very large trees, the matrix may be very large as there is one row per internal branch, and one column per taxon. Finally, branch identifiers are given in the branch labels of the "raw distance tree" with option `-r`.

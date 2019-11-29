@@ -147,7 +147,8 @@ Path* heavypath_leaf(Node *node, int depth)
   }
   else if(node->nneigh > 3)
   {
-    fprintf(stderr, "ERROR: This code works for binary trees only.\n");
+    fprintf(stderr, "ERROR: node %i has too many children!\n", node->nneigh);
+    fprintf(stderr, "       This code works for binary trees only.\n");
     Generic_Exit(__FILE__,__LINE__,__FUNCTION__,EXIT_FAILURE);
   }
   //else                              //node is a leaf of alt_tree
