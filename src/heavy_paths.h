@@ -55,7 +55,8 @@ typedef struct __Path {
   Node* node;               //The node of alt_tree corresponding to this Path.
                             //(this applies only to leaves of the PT)
 
-  Path* child_heavypath;    //The Path tree pendant to this Path.
+  Path** child_heavypaths;  //The vector of Path trees pendant to this Path.
+  int num_child_paths;      //The size of the child_heavypaths vector.
   Path* parent_heavypath;   //The Path that this PT hangs on.
 
   int total_depth;          //# of Path structs to root through all PTs
@@ -77,11 +78,20 @@ Allocate a new Path, setting all the default values.
 */
 Path* new_Path();
 
-/* Decompose the alternative tree into a heavy paths according to the scheme
-described in the definition of the Path struct. Return the root Path of
-the Path tree.
+/* Recursiveley decompose the alternative tree into heavy paths according to
+the scheme described in the definition of the Path struct. Return the root
+Path of the Path tree.
+
+@note   each heavypath corresponds to a tree of Paths we call the PathTree (PT)
+        leaves of the PTs are glued the roots of other PTs (using the
+        child_heavypath pointer).
+        We call the entire tree the HeavyPathTree (HPT)
 */
 Path* heavy_decomposition(Node *root, int depth);
+
+/* Free the memory for the HeavyPathTree (allocated in heavy_decomposition).
+*/
+void free_HPT(Path* node);
 
 /* For the given heavypath, create a Path structure that represents the path.
 Split the path in half and create a Path for each half.  If a half is a single

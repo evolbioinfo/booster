@@ -28,12 +28,12 @@ void compute_transfer_indices_new(Tree *ref_tree, const int n,
 {
   set_leaf_bijection(ref_tree, alt_tree);  //Map leaves between the two trees
 
-  Path* heavypath_root = heavy_decomposition(alt_tree->node0, 0);
-  verify_all_leaves_touched(alt_tree);     //TEMPORARY!
-
   DB_CALL(0, print_nodes_post_order(ref_tree));
   DB_TRACE(0, "alt_tree:\n");
   DB_CALL(0, print_nodes_post_order(alt_tree));
+
+  Path* heavypath_root = heavy_decomposition(alt_tree->node0, 0);
+  verify_all_leaves_touched(alt_tree);     //TEMPORARY!
 
   Node** ref_leaves = ref_tree->leaves->a; //Leaves in ref_tree
 

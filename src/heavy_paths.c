@@ -20,7 +20,8 @@ Path* new_Path()
 
   newpath->node = NULL;
 
-  newpath->child_heavypath = NULL;
+  newpath->child_heavypaths = NULL;
+  newpath->num_child_paths = 0;
   newpath->parent_heavypath = NULL;
 
   newpath->total_depth = 0;
@@ -42,8 +43,8 @@ Recursiveley decompose the alternative tree into heavy paths according to
 the scheme described in the definition of the Path struct. Return the root
 Path of the Path tree.
 
-@note   each heavypath corresponds to a tree of Paths we call the PathTree (PT)
-        leaves of the PTs are glued the roots of other PTs (using the
+@note   Each heavypath corresponds to a tree of Paths we call the PathTree (PT).
+        Leaves of the PTs are glued to the roots of other PTs (using the
         child_heavypath pointer).
         We call the entire tree the HeavyPathTree (HPT)
 */
@@ -68,10 +69,15 @@ Free the memory for the HeavyPathTree (allocated in heavy_decomposition).
 */
 void free_HPT(Path* node)
 {
-  if(node->child_heavypath)               //PT leaf with descendent
-    free_HPT(node->child_heavypath);      //decend to next PT
+  if(node->child_heavypaths)                //PT leaf with descendents
+  {
+    for(int i=0; i < node->num_child_paths; i++)
+      free_HPT(node->child_heavypaths[i]);  //decend to next PT
 
-  else if(!node->node)                    //not leaf of HPT (internal PT node)
+    free(node->child_heavypaths);
+  }
+
+  else if(!node->node)                      //not leaf of HPT (internal PT node)
   {
     free_HPT(node->left);
     free_HPT(node->right);
@@ -137,46 +143,43 @@ Path* heavypath_leaf(Node *node, int depth)
   newpath->d_max_path = node->subtreesize;
 
     //Handle an internal alt_tree node with pendant heavypath:
-  if(node->nneigh > 1 && node->nneigh <= 3)
+  if(node->nneigh > 1)
   {
-    int i_neigh = 1;               //don't look at the parent
-    if(node->nneigh == 2)          //If we are the root of alt_tree
-      i_neigh = 0;                 //then we have no parent.
-
-    if(node->neigh[i_neigh] != node->heavychild)
+    newpath->num_child_paths = node->nneigh - 2;
+    int i_neigh = 1;              //don't look at the parent
+    if(node->depth == 0)          //If we are the root of alt_tree
     {
-      newpath->child_heavypath = heavy_decomposition(node->neigh[i_neigh],
-                                                     depth+1);
-      newpath->child_heavypath->parent_heavypath = newpath;
-    }
-    else if(node->neigh[i_neigh+1] != node->heavychild)
-    {
-      newpath->child_heavypath = heavy_decomposition(node->neigh[i_neigh+1],
-                                                     depth+1);
-      newpath->child_heavypath->parent_heavypath = newpath;
-    }
-    else
-    {
-      fprintf(stderr, "ERROR: Unexpected heavypath configuration!\n");
-      Generic_Exit(__FILE__,__LINE__,__FUNCTION__,EXIT_FAILURE);
+      i_neigh = 0;                //then we have no parent.
+      newpath->num_child_paths += 1;
     }
 
-    newpath->d_min_subtree = min(newpath->child_heavypath->d_min_path,
-                                 newpath->child_heavypath->d_min_subtree);
-    newpath->d_max_subtree = max(newpath->child_heavypath->d_max_path,
-                                 newpath->child_heavypath->d_max_subtree);
+    newpath->child_heavypaths = calloc(newpath->num_child_paths, sizeof(Path*));
+    newpath->d_min_subtree = INT_MAX;
+    newpath->d_max_subtree = INT_MIN;
+
+    int j = 0;                    //index the child heavypaths
+    while(i_neigh < node->nneigh)
+    {
+      if(node->neigh[i_neigh] != node->heavychild)
+      {
+        newpath->child_heavypaths[j] = heavy_decomposition(node->neigh[i_neigh],
+                                                           depth+1);
+        newpath->child_heavypaths[j]->parent_heavypath = newpath;
+
+        newpath->d_min_subtree = min3(newpath->d_min_subtree,
+                                      newpath->child_heavypaths[j]->d_min_path,
+                                      newpath->child_heavypaths[j]->d_min_subtree);
+        newpath->d_max_subtree = max3(newpath->d_max_subtree,
+                                      newpath->child_heavypaths[j]->d_max_path,
+                                      newpath->child_heavypaths[j]->d_max_subtree);
+        j++;
+      }
+
+      i_neigh++;
+    }
+
     newpath->d_min_path = newpath->d_max_path = node->subtreesize;
   }
-  else if(node->nneigh > 3)
-  {
-    fprintf(stderr, "ERROR: node %i has too many children!\n", node->nneigh);
-    fprintf(stderr, "       This code works for binary trees only.\n");
-    Generic_Exit(__FILE__,__LINE__,__FUNCTION__,EXIT_FAILURE);
-  }
-  //else                              //node is a leaf of alt_tree
-  //{
-  //  newpath->d_max_subtree = 1;     //NOTE: unnecessary (remove?)
-  //}
 
   return newpath;
 }
@@ -223,7 +226,7 @@ leaf of the HPT).
 */
 bool is_HPT_leaf(Path *n)
 {
-  return n->node && !n->child_heavypath; //or (n->node && n->node->nneigh == 1)
+  return n->node && !n->child_heavypaths; //or (n->node && n->node->nneigh == 1)
 }
 
 
@@ -247,9 +250,19 @@ void add_leaf_HPT(Node* leaf)
   for(int i = pathlen-1; i > 0; i--)      //go from root to parent of leaf.
   {
     if(path[i]->node)                 //leaf of PT (points to node in alt_tree)
-    {
-      path[i-1]->diff_path += path[i]->diff_subtree;
-      path[i-1]->diff_subtree += path[i]->diff_subtree;
+    {                                 //(child is root of heavypath)
+      for(int j=0; j < path[i]->num_child_paths; j++)
+      {
+        path[i]->child_heavypaths[j]->diff_path += path[i]->diff_subtree;
+        path[i]->child_heavypaths[j]->diff_subtree += path[i]->diff_subtree;
+
+        if(path[i]->child_heavypaths[j] != path[i-1])
+        {
+          path[i]->child_heavypaths[j]->diff_path += 1;
+          path[i]->child_heavypaths[j]->diff_subtree += 1;
+        }
+      }
+
       path[i]->d_min_path += path[i]->diff_path - 1;
       path[i]->d_max_path = path[i]->d_min_path;
     }
@@ -273,7 +286,7 @@ void add_leaf_HPT(Node* leaf)
 
     path[i]->diff_path = path[i]->diff_subtree = 0;
   }
-  assert(path[0]->node && path[0]->child_heavypath == NULL &&
+  assert(path[0]->node && path[0]->child_heavypaths == NULL &&
          path[0]->left == NULL && path[0]->right == NULL);       //HPT leaf
   path[0]->d_min_path += path[0]->diff_path - 1;
   path[0]->d_max_path = path[0]->d_min_path;
@@ -282,19 +295,27 @@ void add_leaf_HPT(Node* leaf)
     //Go up the path, updating the min and max values along the way:
   for(int i=1; i < pathlen; i++)
   {
-    if(path[i]->child_heavypath)                //leaf of a PT
+    if(path[i]->child_heavypaths)               //leaf of a PT
     {                                           //d_min_path already set
-      if(is_HPT_leaf(path[i]->child_heavypath))
+      path[i]->d_min_subtree = path[i]->child_heavypaths[0]->d_min_path;
+      path[i]->d_max_subtree = path[i]->child_heavypaths[0]->d_max_path;
+
+      for(int j=0; j < path[i]->num_child_paths; j++)
       {
-        path[i]->d_min_subtree = path[i]->d_max_subtree =
-          path[i]->child_heavypath->d_min_path;
-      }
-      else
-      {
-        path[i]->d_min_subtree = min(path[i]->child_heavypath->d_min_path,
-                                     path[i]->child_heavypath->d_min_subtree);
-        path[i]->d_max_subtree = max(path[i]->child_heavypath->d_max_path,
-                                     path[i]->child_heavypath->d_max_subtree);
+        if(is_HPT_leaf(path[i]->child_heavypaths[j]))
+        {
+          path[i]->d_min_subtree = path[i]->d_max_subtree =
+            path[i]->child_heavypaths[j]->d_min_path;
+        }
+        else
+        {
+          path[i]->d_min_subtree = min3(path[i]->d_min_subtree,
+                                        path[i]->child_heavypaths[j]->d_min_path,
+                                        path[i]->child_heavypaths[j]->d_min_subtree);
+          path[i]->d_max_subtree = max3(path[i]->d_max_subtree,
+                                        path[i]->child_heavypaths[j]->d_max_path,
+                                        path[i]->child_heavypaths[j]->d_max_subtree);
+        }
       }
     }
     else
@@ -398,16 +419,21 @@ void reset_leaf_HPT(Node *leaf)
     //Follow the path from the root to the leaf, resetting the values along
     //the way:
   Path* w = leaf->path;
+  Path* lastw = w;
   while(w != NULL)                    //traverse up between PTs
   {
     w->diff_path = w->diff_subtree = 0;
     w->d_min_path = w->d_max_path = w->node->subtreesize;
-    if(!is_HPT_leaf(w))
+    if(!is_HPT_leaf(w))               //this PT leaf is not a HPT leaf
     {
-      w->d_min_subtree = min(w->child_heavypath->d_min_path,
-                             w->child_heavypath->d_min_subtree);
-      w->d_max_subtree = max(w->child_heavypath->d_max_path,
-                             w->child_heavypath->d_max_subtree);
+      w->d_min_subtree = min(lastw->d_min_path, lastw->d_min_subtree);
+      w->d_max_subtree = max(lastw->d_max_path, lastw->d_max_subtree);
+      for(int i=0; i < w->num_child_paths; i++)
+        if(w->child_heavypaths[i] != lastw)
+        {
+          w->child_heavypaths[i]->diff_path = 0;
+          w->child_heavypaths[i]->diff_subtree = 0;
+        }
     }
 
     while(w->parent != NULL)          //traverse up each PT
@@ -419,10 +445,12 @@ void reset_leaf_HPT(Node *leaf)
       w->d_max_path = max(w->left->d_max_path, w->right->d_max_path);
       w->d_min_subtree = 1;
       w->d_max_subtree = max(w->left->d_max_subtree, w->right->d_max_subtree);
+
       w->left->diff_path = w->left->diff_subtree = 0;
       w->right->diff_path = w->right->diff_subtree = 0;
     }
 
+    lastw = w;
     w = w->parent_heavypath;
   }
 }
@@ -511,18 +539,19 @@ void print_HPT_subpath_dot(Path* n, FILE *f)
   if(n->node)                         //node of alt_tree
   {
     print_HPT_hpnode_dot(n, f);       //print node formatting information.
-    if(n->child_heavypath)            //not a leaf of HPT (and PT and alt_tree)
-    {
-      //if(!n->child_heavypath->node)   //child is also not alt_tree node
-      //{
-      fprintf(f, "  ");
-      print_HPT_node_dot(n, f);
-      fprintf(f, " -> ");
-      print_HPT_node_dot(n->child_heavypath, f);
-      fprintf(f, " [style=dashed color=gray];\n");
-      //}
 
-      print_HPT_subpath_dot(n->child_heavypath, f);
+    if(n->child_heavypaths)           //not a leaf of HPT (and alt_tree)
+    {
+      for(int i=0; i < n->num_child_paths; i++)
+      {
+        fprintf(f, "  ");
+        print_HPT_node_dot(n, f);
+        fprintf(f, " -> ");
+        print_HPT_node_dot(n->child_heavypaths[i], f);
+        fprintf(f, " [style=dashed color=gray];\n");
+
+        print_HPT_subpath_dot(n->child_heavypaths[i], f);
+      }
     }
   }
 }
@@ -536,7 +565,7 @@ void print_HPT_subtree_dot(Node* node, FILE *f)
   if(node->nneigh > 1)    //not leaf
   {
     int firstchild = 1;
-    if(node->nneigh == 2)
+    if(node->depth == 0)
       firstchild = 0;
 
     for(int i = firstchild; i < node->nneigh; i++)
