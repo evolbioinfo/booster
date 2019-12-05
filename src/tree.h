@@ -71,10 +71,11 @@ typedef struct __Node {
 	char* comment;		/* for further use: store any comment (e.g. from NHX format) */
 	int id;			      /* unique id attributed to the node (index of node into a_nodes array*/
 	short int nneigh;	/* number of neighbours */
+	short int nneigh_space; /* Currently allocated neighbors */
 	struct __Node** neigh;	/* neighbour nodes */
 	struct __Edge** br;	/* corresponding branches going from this node */
 	double mheight;	/* the height of a node is its min distance to a leaf */
-
+  
          // Variables used for rapid transfer index calculation on alt_tree:
          // (only in absence of heavypath decomposition and the alt_tree)
    int subtreesize; // Number of leaves in subtree rooted at this node (assume rooted)
@@ -130,6 +131,10 @@ typedef struct __Tree {
 	int nb_nodes;
 	int nb_edges;
 	int nb_taxa;
+  	int nb_taxa_space; // Space currently allocated for taxa
+  	int nb_edges_space; // Space currently allocated for edges
+  	int nb_nodes_space; // Space currently allocated for nodes
+  
 	char** taxa_names; /* store only once the taxa names */
 	int length_hashtables; /* the number of chained lists in the hashtables on the edges */
 	int next_avail_node_id;
@@ -164,9 +169,11 @@ int index_toplevel_colon(char* in_str, int begin, int end);
 void parse_double(char* in_str, int begin, int end, double* location);
 
 /* creating a node, a branch, a tree: to create a tree from scratch, not from parsing */
+Node* newNode(Tree *t);
 Node* new_node(const char* name, Tree* t, int degree);
 Edge* new_edge(Tree* t);
-Tree* new_tree(int nb_taxa, const char* name);
+Tree* new_tree(const char* name);
+Edge* connect_to_father(Node* father, Node* son, Tree* current_tree);
 Node* graft_new_node_on_branch(Edge* target_edge, Tree* tree, double ratio_from_left, double new_edge_length, char* node_name);
 
 
@@ -247,7 +254,7 @@ void process_name_and_brlen(Node* son_node, Edge* edge, Tree* current_tree, char
 Node* create_son_and_connect_to_father(Node* current_node, Tree* current_tree, int direction, char* in_str, int begin, int end);
 void parse_substring_into_node(char* in_str, int begin, int end, Node* current_node, int has_father, Tree* current_tree);
 Tree* parse_nh_string(char* in_str);
-
+char parse_recur(Tree* t, char* in_str, int* position, int in_length, Node* node, Edge* edge, int* level);
 /* complete parse tree: parse NH string, update hashtables and subtype counts */
 Tree *complete_parse_nh(char* big_string, char*** taxname_lookup_table,
                         bool skip_hashtables);

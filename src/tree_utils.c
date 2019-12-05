@@ -47,11 +47,10 @@ Tree* gen_random_tree(Tree *tree){
   if(my_tree) free_tree(my_tree); 
   
   /* create a new tree */
-  my_tree = new_tree(tree->nb_taxa, tree->taxa_names[indices[nb_inserted_taxa++]]);
+  my_tree = new_tree(tree->taxa_names[indices[nb_inserted_taxa++]]);
 	
   /* graft the second taxon */
   graft_new_node_on_branch(NULL, my_tree, 0.5, 1.0, tree->taxa_names[indices[nb_inserted_taxa++]]);
-  
   while(nb_inserted_taxa < tree->nb_taxa) {
     /* select a branch at random */
     edge_ind = rand_to(my_tree->nb_edges); /* outputs something between 0 and (nb_edges-1) exclusive */
@@ -70,7 +69,6 @@ Tree* gen_random_tree(Tree *tree){
     my_tree->a_edges[e]->hashtbl[0] = create_id_hash_table(my_tree->length_hashtables);
     my_tree->a_edges[e]->hashtbl[1] = create_id_hash_table(my_tree->length_hashtables);
   }
-
   /* write_nh_tree(my_tree,stdout); */
 
   update_hashtables_post_alltree(my_tree);
@@ -96,7 +94,10 @@ Tree* gen_random_tree(Tree *tree){
 
   /* topological depths of branches */
   update_all_topo_depths_from_hashtables(my_tree);
-
   free(indices);
+
+  my_tree->leaves = allocateLA(my_tree->nb_taxa);
+  
+  prepare_rapid_TI(my_tree);
   return(my_tree);
 }

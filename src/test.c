@@ -188,8 +188,8 @@ int swap_branches(Tree *t, Edge *e){
  
   update_hashtables_post_alltree(t);
   update_hashtables_pre_alltree(t);
-  update_node_depths_post_alltree(t);
-  update_node_depths_pre_alltree(t);
+  update_node_heights_post_alltree(t);
+  update_node_heights_pre_alltree(t);
 
   for (i = 0; i < t->nb_edges; i++) {
     free_id_hashtable(t->a_edges[i]->hashtbl[0]); 
@@ -221,8 +221,8 @@ int test_classical_bootstrap(){
   char *boot_tree_string = "(b:1,a:1,(c:1,d:1):1);";
   char** taxname_lookup_table = NULL;
 
-  Tree* ref_tree = complete_parse_nh(ref_tree_string, &taxname_lookup_table); /* sets taxname_lookup_table en passant */
-  Tree* boot_tree = complete_parse_nh(boot_tree_string, &taxname_lookup_table); /* sets taxname_lookup_table en passant */
+  Tree* ref_tree = complete_parse_nh(ref_tree_string, &taxname_lookup_table, false); /* sets taxname_lookup_table en passant */
+  Tree* boot_tree = complete_parse_nh(boot_tree_string, &taxname_lookup_table, false); /* sets taxname_lookup_table en passant */
   int i,j;
   int common_splits = 0;
   int splits_not_found = 0;
@@ -284,6 +284,42 @@ void test_fill_hashtable_post_order(Node* current, Node* orig, Tree* t, id_hash_
 
 
 
+int test_parse(){
+  char** taxname_lookup_table = NULL;
+  char *ref_tree_string = "((a:1,b:1.1)88.1:1.2,e:1.3,(c:1.4,d:1.5)98.45:1.6);"; 
+
+  Tree* ref_tree = complete_parse_nh(ref_tree_string, &taxname_lookup_table, false); /* sets taxname_lookup_table en passant */
+
+  if(ref_tree->nb_taxa!=5){
+    fprintf(stderr,"Tree should have 5 taxa, not %d\n",ref_tree->nb_taxa);
+    return(EXIT_FAILURE);
+  }
+  if(ref_tree->nb_edges!=7){
+    fprintf(stderr,"Tree should have 7 edges, not %d\n",ref_tree->nb_edges);
+    return(EXIT_FAILURE);
+  }
+  if(ref_tree->nb_nodes!=8){
+    fprintf(stderr,"Tree should have 8 nodes, not %d\n",ref_tree->nb_nodes);
+    return(EXIT_FAILURE);
+  }
+
+  char* buffer = NULL;
+  size_t bufferSize = 0;
+  FILE* myStream = open_memstream(&buffer, &bufferSize);
+  write_nh_tree(ref_tree, myStream);
+  fclose(myStream);
+
+  if(strcmp( buffer,  ref_tree_string) != 0){
+    fprintf(stderr,"%d\n",strcmp( buffer,  ref_tree_string));
+    fprintf(stderr,"The parsed neick tree is different from the initial newick string: [%s] vs. [%s]\n",ref_tree_string, buffer);
+    free(buffer);
+    return(EXIT_FAILURE);
+  }
+  free(buffer);
+  free_tree(ref_tree);
+  fprintf(stderr,"Parse Test: OK\n");
+  return(EXIT_SUCCESS);
+}
 
 int test_swap_branches(){
   /**
@@ -297,8 +333,7 @@ int test_swap_branches(){
    */
   char** taxname_lookup_table = NULL;
   char *ref_tree_string = "((a:1,b:1):1,e:1,(c:1,d:1):1);"; 
-  Tree* ref_tree = complete_parse_nh(ref_tree_string, &taxname_lookup_table); /* sets taxname_lookup_table en passant */
-
+  Tree* ref_tree = complete_parse_nh(ref_tree_string, &taxname_lookup_table, false); /* sets taxname_lookup_table en passant */
   int e_index;
   int swaped = 0;
   for(e_index=0;e_index<ref_tree->nb_edges;e_index++){
@@ -311,6 +346,7 @@ int test_swap_branches(){
       swaped = 1;
     }
   }
+  free_tree(ref_tree);  
   fprintf(stderr,"Swap branch Test: OK\n");
   return(EXIT_SUCCESS);
 }
@@ -326,7 +362,7 @@ int test_transfer_1(){
 
   /* and then feed this string to the parser */
   char** taxname_lookup_table = NULL;
-  Tree* ref_tree = complete_parse_nh(ref_tree_string, &taxname_lookup_table); /* sets taxname_lookup_table en passant */
+  Tree* ref_tree = complete_parse_nh(ref_tree_string, &taxname_lookup_table, false); /* sets taxname_lookup_table en passant */
   Tree* swap_tree = NULL;
 
   int e_index;
@@ -343,8 +379,9 @@ int test_transfer_1(){
   short unsigned** hamming = (short unsigned**) malloc(m*sizeof(short unsigned*)); /* matrix of Hamming distances */
   for (i=0; i<m; i++) hamming[i] = (short unsigned*) malloc(max_branches_boot*sizeof(short unsigned));
   short unsigned* min_dist = (short unsigned*) malloc(m*sizeof(short unsigned)); /* array of min Hamming distances */
+  short unsigned* min_dist_edge = (short unsigned*) malloc(m*sizeof(short unsigned)); /* array of min Hamming distances */
 
-  swap_tree = complete_parse_nh(swap_tree_string, &taxname_lookup_table); /* sets taxname_lookup_table en passant */
+  swap_tree = complete_parse_nh(swap_tree_string, &taxname_lookup_table, false); /* sets taxname_lookup_table en passant */
   for (i = 0; i < m; i++) {
     min_dist[i] = n; /* initialization to the nb of taxa */
   }
@@ -353,7 +390,7 @@ int test_transfer_1(){
 
   /* calculation of the C and I matrices (see Brehelin/Gascuel/Martin) */
   update_all_i_c_post_order_ref_tree(ref_tree, swap_tree, i_matrix, c_matrix);
-  update_all_i_c_post_order_boot_tree(ref_tree, swap_tree, i_matrix, c_matrix, hamming, min_dist);
+  update_all_i_c_post_order_boot_tree(ref_tree, swap_tree, i_matrix, c_matrix, hamming, min_dist, min_dist_edge);
   
   if(min_dist[e_index] > min_num_moved){
     fprintf(stderr,"TRANSFER Test 1 : Error : The min_dist of the swaped branch is > the number of swaped taxa %d>%d\n",min_dist[e_index],min_num_moved);
@@ -390,7 +427,7 @@ int test_transfer_2(){
   int r;
   /* and then feed this string to the parser */
   char** taxname_lookup_table = NULL;
-  Tree* ref_tree = complete_parse_nh(ref_tree_string, &taxname_lookup_table); /* sets taxname_lookup_table en passant */
+  Tree* ref_tree = complete_parse_nh(ref_tree_string, &taxname_lookup_table, false); /* sets taxname_lookup_table en passant */
   Tree* swap_tree = NULL;
 
   Edge *e;
@@ -408,9 +445,10 @@ int test_transfer_2(){
   short unsigned** hamming = (short unsigned**) malloc(m*sizeof(short unsigned*)); /* matrix of Hamming distances */
   for (i=0; i<m; i++) hamming[i] = (short unsigned*) malloc(max_branches_boot*sizeof(short unsigned));
   short unsigned* min_dist = (short unsigned*) malloc(m*sizeof(short unsigned)); /* array of min Hamming distances */
+  short unsigned* min_dist_edge = (short unsigned*) malloc(m*sizeof(short unsigned)); /* array of min Hamming distances */
 
   for(r=0;r<100;r++){
-    swap_tree = complete_parse_nh(ref_tree_string, &taxname_lookup_table); /* sets taxname_lookup_table en passant */
+    swap_tree = complete_parse_nh(ref_tree_string, &taxname_lookup_table, false); /* sets taxname_lookup_table en passant */
     for (i = 0; i < m; i++) {
       min_dist[i] = n; /* initialization to the nb of taxa */
     }
@@ -427,7 +465,7 @@ int test_transfer_2(){
 
     /* calculation of the C and I matrices (see Brehelin/Gascuel/Martin) */
     update_all_i_c_post_order_ref_tree(ref_tree, swap_tree, i_matrix, c_matrix);
-    update_all_i_c_post_order_boot_tree(ref_tree, swap_tree, i_matrix, c_matrix, hamming, min_dist);
+    update_all_i_c_post_order_boot_tree(ref_tree, swap_tree, i_matrix, c_matrix, hamming, min_dist, min_dist_edge);
 
     if(min_dist[e_index] > min_num_moved){
       fprintf(stderr,"TRANSFER Test 2 after branch swap : Error : The min_dist of the swaped branch is > the number of swaped taxa\n");
@@ -465,7 +503,7 @@ int test_transfer_3(){
 
   /* and then feed this string to the parser */
   char** taxname_lookup_table = NULL;
-  Tree* ref_tree = complete_parse_nh(ref_tree_string, &taxname_lookup_table); /* sets taxname_lookup_table en passant */
+  Tree* ref_tree = complete_parse_nh(ref_tree_string, &taxname_lookup_table, false); /* sets taxname_lookup_table en passant */
   Tree* swap_tree = NULL;
 
   int e_index;
@@ -482,8 +520,9 @@ int test_transfer_3(){
   short unsigned** hamming = (short unsigned**) malloc(m*sizeof(short unsigned*)); /* matrix of Hamming distances */
   for (i=0; i<m; i++) hamming[i] = (short unsigned*) malloc(max_branches_boot*sizeof(short unsigned));
   short unsigned* min_dist = (short unsigned*) malloc(m*sizeof(short unsigned)); /* array of min Hamming distances */
+  short unsigned* min_dist_edge = (short unsigned*) malloc(m*sizeof(short unsigned)); /* array of min Hamming distances */
 
-  swap_tree = complete_parse_nh(swap_tree_string, &taxname_lookup_table); /* sets taxname_lookup_table en passant */
+  swap_tree = complete_parse_nh(swap_tree_string, &taxname_lookup_table, false); /* sets taxname_lookup_table en passant */
   for (i = 0; i < m; i++) {
     min_dist[i] = n; /* initialization to the nb of taxa */
   }
@@ -492,7 +531,7 @@ int test_transfer_3(){
 
   /* calculation of the C and I matrices (see Brehelin/Gascuel/Martin) */
   update_all_i_c_post_order_ref_tree(ref_tree, swap_tree, i_matrix, c_matrix);
-  update_all_i_c_post_order_boot_tree(ref_tree, swap_tree, i_matrix, c_matrix, hamming, min_dist);
+  update_all_i_c_post_order_boot_tree(ref_tree, swap_tree, i_matrix, c_matrix, hamming, min_dist,min_dist_edge);
   
   if(min_dist[e_index] != min_num_moved){
     fprintf(stderr,"TRANSFER Test 3 : Error : The min_dist of the internal branch is != %d (%d)\n",min_num_moved,min_dist[e_index]);
@@ -501,7 +540,7 @@ int test_transfer_3(){
 
   free_tree(swap_tree);
 
-  swap_tree = complete_parse_nh(swap_tree2_string, &taxname_lookup_table); /* sets taxname_lookup_table en passant */
+  swap_tree = complete_parse_nh(swap_tree2_string, &taxname_lookup_table, false); /* sets taxname_lookup_table en passant */
   for (i = 0; i < m; i++) {
     min_dist[i] = n; /* initialization to the nb of taxa */
   }
@@ -510,7 +549,7 @@ int test_transfer_3(){
 
   /* calculation of the C and I matrices (see Brehelin/Gascuel/Martin) */
   update_all_i_c_post_order_ref_tree(ref_tree, swap_tree, i_matrix, c_matrix);
-  update_all_i_c_post_order_boot_tree(ref_tree, swap_tree, i_matrix, c_matrix, hamming, min_dist);
+  update_all_i_c_post_order_boot_tree(ref_tree, swap_tree, i_matrix, c_matrix, hamming, min_dist, min_dist_edge);
   
   if(min_dist[e_index] != min_num_moved){
     fprintf(stderr,"TRANSFER Test 3 : Error : The min_dist of the internal branch is != %d (%d)\n",min_num_moved,min_dist[e_index]);
@@ -592,24 +631,25 @@ int test_transfer_4(){
     short unsigned** i_matrix = (short unsigned**) malloc(m*sizeof(short unsigned*)); /* matrix of cardinals of intersections */
     short unsigned** hamming = (short unsigned**) malloc(m*sizeof(short unsigned*)); /* matrix of Hamming distances */
     short unsigned* min_dist = (short unsigned*) malloc(m*sizeof(short unsigned)); /* array of min Hamming distances */
-    
+    short unsigned* min_dist_edge = (short unsigned*) malloc(m*sizeof(short unsigned)); /* array of min Hamming distances */
+
     for (i=0; i<m; i++) c_matrix[i] = (short unsigned*) malloc(max_branches_boot*sizeof(short unsigned));
     for (i=0; i<m; i++) i_matrix[i] = (short unsigned*) malloc(max_branches_boot*sizeof(short unsigned));
     for (i=0; i<m; i++) hamming[i]  = (short unsigned*) malloc(max_branches_boot*sizeof(short unsigned));
     
     for(i_swap = 0; i_swap < n_swap; i_swap++){
       for (i = 0; i < m; i++) {
-	min_dist[i] = n; /* initialization to the nb of taxa */
+	      min_dist[i] = n; /* initialization to the nb of taxa */
       }
       /* First we see if the min dist is 0 for all branches (it must be) */
       update_all_i_c_post_order_ref_tree(ref_tree, swap_tree, i_matrix, c_matrix);
-      update_all_i_c_post_order_boot_tree(ref_tree, swap_tree, i_matrix, c_matrix, hamming, min_dist);
+      update_all_i_c_post_order_boot_tree(ref_tree, swap_tree, i_matrix, c_matrix, hamming, min_dist, min_dist_edge);
     
       for(i_edge=0; i_edge<ref_tree->nb_edges;i_edge++){
-	if(min_dist[i_edge] != 0){
-	  /* fprintf(stderr,"TRANSFER Test 4 : Error : The min_dist of the internal branch is != 0 (%d)\n",min_dist[i_edge]); */
-	  return(EXIT_FAILURE);
-	}
+	      if(min_dist[i_edge] != 0){
+	        /* fprintf(stderr,"TRANSFER Test 4 : Error : The min_dist of the internal branch is != 0 (%d)\n",min_dist[i_edge]); */
+	        return(EXIT_FAILURE);
+	      }
       }
       /* fprintf(stderr,"TRANSFER Test 4/1 : OK : The min_dist of the internal branch is == 0 (%d)\n",min_dist[i_edge]); */
     
@@ -622,33 +662,33 @@ int test_transfer_4(){
       int* right_taxa = sample_taxa(swap_tree, n_move, swap_tree->a_edges[edge]->left , swap_tree->a_edges[edge]->right);
       int i_move;
       for(i_move=0; i_move < n_move; i_move++){
-	/* fprintf(stderr,"\tMoving %s <-> %s\n",swap_tree->a_nodes[left_taxa[i_move]]->name, swap_tree->a_nodes[right_taxa[i_move]]->name); */
-	char *tmp;
-	tmp = swap_tree->a_nodes[left_taxa[i_move]]->name;
-	swap_tree->a_nodes[left_taxa[i_move]]->name = swap_tree->a_nodes[right_taxa[i_move]]->name;
-	swap_tree->a_nodes[right_taxa[i_move]]->name = tmp;
+	      /* fprintf(stderr,"\tMoving %s <-> %s\n",swap_tree->a_nodes[left_taxa[i_move]]->name, swap_tree->a_nodes[right_taxa[i_move]]->name); */
+	      char *tmp;
+	      tmp = swap_tree->a_nodes[left_taxa[i_move]]->name;
+	      swap_tree->a_nodes[left_taxa[i_move]]->name = swap_tree->a_nodes[right_taxa[i_move]]->name;
+	      swap_tree->a_nodes[right_taxa[i_move]]->name = tmp;
       }
     
       for (i = 0; i < m; i++) {
-	min_dist[i] = n; /* initialization to the nb of taxa */
+	      min_dist[i] = n; /* initialization to the nb of taxa */
       }
     
       update_all_i_c_post_order_ref_tree(ref_tree, swap_tree, i_matrix, c_matrix);
-      update_all_i_c_post_order_boot_tree(ref_tree, swap_tree, i_matrix, c_matrix, hamming, min_dist);
+      update_all_i_c_post_order_boot_tree(ref_tree, swap_tree, i_matrix, c_matrix, hamming, min_dist, min_dist_edge);
     
       /* fprintf(stderr,"\tTRANSFER Test 4 : The min_dist of the internal branch is %d\n",min_dist[edge]); */
     
       if(min_dist[edge] > n_move*2 ){
-	fprintf(stderr,"TRANSFER Test 4 : Error : The min_dist of the internal branch is > 2*%d (%d)\n",n_move,min_dist[edge]);
-	return(EXIT_FAILURE);
+        fprintf(stderr,"TRANSFER Test 4 : Error : The min_dist of the internal branch is > 2*%d (%d)\n",n_move,min_dist[edge]);
+	      return(EXIT_FAILURE);
       }
 
       /* We leave the tree as it was at the beginning */
       for(i_move=0; i_move < n_move; i_move++){
-	char *tmp;
-	tmp = swap_tree->a_nodes[left_taxa[i_move]]->name;
-	swap_tree->a_nodes[left_taxa[i_move]]->name = swap_tree->a_nodes[right_taxa[i_move]]->name;
-	swap_tree->a_nodes[right_taxa[i_move]]->name = tmp;
+	      char *tmp;
+	      tmp = swap_tree->a_nodes[left_taxa[i_move]]->name;
+	      swap_tree->a_nodes[left_taxa[i_move]]->name = swap_tree->a_nodes[right_taxa[i_move]]->name;
+	      swap_tree->a_nodes[right_taxa[i_move]]->name = tmp;
       }
 
       free(left_taxa);
@@ -672,57 +712,56 @@ int test_transfer_4(){
 
 int test_randomtree(){
   srand(time(NULL));
-    char *ref_tree_string = "((a:1,b:1):1,e:1,(c:1,d:1):1);"; 
-    char** taxname_lookup_table = NULL;
-    Tree* ref_tree = complete_parse_nh(ref_tree_string, &taxname_lookup_table); /* sets taxname_lookup_table en passant */
-    int nbtrees = 10;
-    int i,t;
-    for(i=0;i<nbtrees;i++){
-      Tree* rand_tree = gen_random_tree(ref_tree);
-      /* We test if the lookup table is ok for all random tree*/
-      for(t=0;t<rand_tree->nb_nodes;t++){
-	Node *n = rand_tree->a_nodes[t];
-	if(n->nneigh==1){
-	  int ref_lookid = get_tax_id_from_tax_name(n->name,ref_tree->taxname_lookup_table, ref_tree->nb_taxa);
-	  int rand_lookid= get_tax_id_from_tax_name(n->name,rand_tree->taxname_lookup_table, rand_tree->nb_taxa);
-	  if(ref_lookid != rand_lookid){
-	    fprintf(stderr,"Random tree test error: tax id in lookup table is : %d and should be : %d\n",rand_lookid,ref_lookid);
-	    free_tree(rand_tree);
-	    free_tree(ref_tree);
-	    return EXIT_FAILURE;
-	  }
-	}
-	/* For each Edge we will test the hashtables */
-	int e;
-	for(e=0;e<rand_tree->nb_edges;e++){
-	  id_hash_table_t * h = rand_tree->a_edges[e]->hashtbl[1];
-	  id_hash_table_t * h2 = create_id_hash_table(rand_tree->nb_taxa);
-	  id_hash_table_t * h3 = create_id_hash_table(rand_tree->nb_taxa);
-	  test_fill_hashtable_post_order(rand_tree->a_edges[e]->left,rand_tree->a_edges[e]->right, rand_tree, h2);
-	  test_fill_hashtable_post_order(rand_tree->a_edges[e]->right,rand_tree->a_edges[e]->left, rand_tree, h3);
-	  
-	  if(!equal_id_hashtables(h,h2) && !equal_id_hashtables(h,h3)){
-	  /* if(!equal_or_complement_id_hashtables(h,h2,rand_tree->nb_taxa)){ */
-	    fprintf(stderr,"Random tree test error: hashtables are not consistent with the lookup table\n");
-	    print_id_hashtable(stderr, h, rand_tree->nb_taxa);
-	    print_id_hashtable(stderr, h2, rand_tree->nb_taxa);
-	    print_id_hashtable(stderr, h3, rand_tree->nb_taxa);
-	    
-	    free_tree(rand_tree);
-	    free_tree(ref_tree);
-	    free_id_hashtable(h2);
-	    return EXIT_FAILURE;	    
-	  }
-	  free_id_hashtable(h2);
-	}
+  char *ref_tree_string = "((a:1,b:1):1,e:1,(c:1,d:1):1);"; 
+  char** taxname_lookup_table = NULL;
+  Tree* ref_tree = complete_parse_nh(ref_tree_string, &taxname_lookup_table, false); /* sets taxname_lookup_table en passant */
+  int nbtrees = 10;
+  int i,t;
+  for(i=0;i<nbtrees;i++){
+    Tree* rand_tree = gen_random_tree(ref_tree);
+    /* We test if the lookup table is ok for all random tree*/
+    for(t=0;t<rand_tree->nb_nodes;t++){
+      Node *n = rand_tree->a_nodes[t];
+      if(n->nneigh==1){
+        int ref_lookid = get_tax_id_from_tax_name(n->name,ref_tree->taxname_lookup_table, ref_tree->nb_taxa);
+        int rand_lookid= get_tax_id_from_tax_name(n->name,rand_tree->taxname_lookup_table, rand_tree->nb_taxa);
+        if(ref_lookid != rand_lookid){
+          fprintf(stderr,"Random tree test error: tax id in lookup table is : %d and should be : %d\n",rand_lookid,ref_lookid);
+          free_tree(rand_tree);
+          free_tree(ref_tree);
+          return EXIT_FAILURE;
+        }
       }
-      free_tree(rand_tree);
+      /* For each Edge we will test the hashtables */
+      int e;
+      for(e=0;e<rand_tree->nb_edges;e++){
+        id_hash_table_t * h = rand_tree->a_edges[e]->hashtbl[1];
+        id_hash_table_t * h2 = create_id_hash_table(rand_tree->nb_taxa);
+        id_hash_table_t * h3 = create_id_hash_table(rand_tree->nb_taxa);
+        test_fill_hashtable_post_order(rand_tree->a_edges[e]->left,rand_tree->a_edges[e]->right, rand_tree, h2);
+        test_fill_hashtable_post_order(rand_tree->a_edges[e]->right,rand_tree->a_edges[e]->left, rand_tree, h3);
+    
+        if(!equal_id_hashtables(h,h2) && !equal_id_hashtables(h,h3)){
+	  /* if(!equal_or_complement_id_hashtables(h,h2,rand_tree->nb_taxa)){ */
+          fprintf(stderr,"Random tree test error: hashtables are not consistent with the lookup table\n");
+          print_id_hashtable(stderr, h, rand_tree->nb_taxa);
+          print_id_hashtable(stderr, h2, rand_tree->nb_taxa);
+          print_id_hashtable(stderr, h3, rand_tree->nb_taxa);
+        
+          free_tree(rand_tree);
+          free_tree(ref_tree);
+          free_id_hashtable(h2);
+          return EXIT_FAILURE;	    
+        }
+        free_id_hashtable(h2);
+      }
     }
-    free_tree(ref_tree);
+    free_tree(rand_tree);
+  }
+  free_tree(ref_tree);
+  fprintf(stderr,"Random tree Test: OK\n");
 
-    fprintf(stderr,"Random tree Test: OK\n");
-
-    return(EXIT_SUCCESS);
+  return(EXIT_SUCCESS);
 }
 
 int test_id_hash_table_shuffle(){
@@ -1205,7 +1244,7 @@ int test_remove_taxon(){
   double sum_brlen = 0.0;
 
   char** taxname_lookup_table = NULL;
-  Tree* ref_tree = complete_parse_nh(ref_tree_string, &taxname_lookup_table); /* sets taxname_lookup_table en passant */
+  Tree* ref_tree = complete_parse_nh(ref_tree_string, &taxname_lookup_table, false); /* sets taxname_lookup_table en passant */
   int tax_id = get_tax_id_from_tax_name("a", taxname_lookup_table, ref_tree->nb_taxa);
   sum_brlen=0.0;
   write_nh_tree(ref_tree,stdout);
@@ -1248,7 +1287,7 @@ int test_remove_taxon(){
   free_tree(ref_tree);
 
   /* On essaie avec un arbre multifurcation */
-  ref_tree = complete_parse_nh(boot4_tree_string, &taxname_lookup_table); /* sets taxname_lookup_table en passant */
+  ref_tree = complete_parse_nh(boot4_tree_string, &taxname_lookup_table, false); /* sets taxname_lookup_table en passant */
   tax_id = get_tax_id_from_tax_name("a", taxname_lookup_table, ref_tree->nb_taxa);
   remove_taxon(tax_id,ref_tree);
   if(ref_tree->nb_nodes != 5){
@@ -1278,7 +1317,7 @@ int test_remove_taxon(){
   free_tree(ref_tree);
 
   /* On essaie avec un autre arbre multifurcation */
-  ref_tree = complete_parse_nh(boot3_tree_string, &taxname_lookup_table); /* sets taxname_lookup_table en passant */
+  ref_tree = complete_parse_nh(boot3_tree_string, &taxname_lookup_table, false); /* sets taxname_lookup_table en passant */
   tax_id = get_tax_id_from_tax_name("a", taxname_lookup_table, ref_tree->nb_taxa);
   remove_taxon(tax_id,ref_tree);
   if(ref_tree->nb_nodes != 6){
@@ -1309,7 +1348,7 @@ int test_remove_taxon(){
   free_tree(ref_tree);
   
 
-  ref_tree = complete_parse_nh(ref_tree_string, &taxname_lookup_table); /* sets taxname_lookup_table en passant */
+  ref_tree = complete_parse_nh(ref_tree_string, &taxname_lookup_table, false); /* sets taxname_lookup_table en passant */
   tax_id = get_tax_id_from_tax_name("e", taxname_lookup_table, ref_tree->nb_taxa);
   remove_taxon(tax_id,ref_tree);
   write_nh_tree(ref_tree,stdout);
@@ -1378,6 +1417,11 @@ int main(int arbc, char** argv){
   }
 
   exit_code = test_id_hash_table_shuffle();
+  if(exit_code != EXIT_SUCCESS){
+    return(exit_code);
+  }
+
+  exit_code = test_parse();
   if(exit_code != EXIT_SUCCESS){
     return(exit_code);
   }
