@@ -1188,6 +1188,7 @@ Edge* connect_to_father(Node* father, Node* son, Tree* current_tree) {
 
 
 // Parses a Newick String.
+// Copied for a large part from https://github.com/evolbioinfo/gotree/blob/master/io/newick/newick_parser.go
 Tree* parse_nh_string(char* in_str) {
 	Tree *t = (Tree *) malloc(sizeof(Tree));
 	int begin, end; /* to delimitate the string to further process */
@@ -1297,6 +1298,7 @@ bool isNewickChar(char ch){
   return(ch == '[' || ch == ']' || ch == '(' || ch == ')' || ch == ',' || ch == ':' || ch == ';');
 }
 
+// Copied for a large part from https://github.com/evolbioinfo/gotree/blob/master/io/newick/newick_parser.go
 char parse_recur(Tree* t, char* in_str, int* position, int in_length, Node* node, Edge* edge, int* level){
 	Node* new_node = node;
 	char prev_token = -1;
