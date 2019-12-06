@@ -49,12 +49,12 @@ typedef unsigned short Taxon_id;	/* this gives us room for at least 65,536 taxa 
 
 typedef unsigned long* bfield_t;	/* the bitfield type: a series of consecutive unsigned longs. */
 #define chunksize (8 * sizeof(unsigned long))	/* number of bits in a bitfield chunk, e.g. sizeof(unsigned long) = 4 means that chunksize = 32 */
-#define nbchunks_bitarray (ntax/chunksize + (ntax%chunksize != 0 ? 1 : 0)) /* euclidean division */
 /* and then this value never changes, it is the size of a bitarray in longs for this number of taxa. */
 
 
 
 typedef struct _id_hash_table_t_ {
+  int nchunks;
     int num_items;		/* the true number of items (ids) stored in this bit field */
     bfield_t bitarray;	      	/* the bit field */
 } id_hash_table_t;

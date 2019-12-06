@@ -178,23 +178,14 @@ int swap_branches(Tree *t, Edge *e){
      We recompute hashtables and node depths
    */
   for (i = 0; i < t->nb_edges; i++) {
-    if(t->a_edges[i]->hashtbl[0] != NULL)
-      free_id_hashtable(t->a_edges[i]->hashtbl[0]);
-    if(t->a_edges[i]->hashtbl[1] != NULL)
-      free_id_hashtable(t->a_edges[i]->hashtbl[1]); 
-    t->a_edges[i]->hashtbl[0] = create_id_hash_table(t->length_hashtables);
-    t->a_edges[i]->hashtbl[1] = create_id_hash_table(t->length_hashtables);
+    if(t->a_edges[i]->hashtbl != NULL)
+      free_id_hashtable(t->a_edges[i]->hashtbl);
+    t->a_edges[i]->hashtbl = create_id_hash_table(t->nb_taxa);
   }
  
   update_hashtables_post_alltree(t);
-  update_hashtables_pre_alltree(t);
   update_node_heights_post_alltree(t);
   update_node_heights_pre_alltree(t);
-
-  for (i = 0; i < t->nb_edges; i++) {
-    free_id_hashtable(t->a_edges[i]->hashtbl[0]); 
-    t->a_edges[i]->hashtbl[0] = NULL;
-  }
 
   /* topological depths of branches */
   update_all_topo_depths_from_hashtables(t);
@@ -223,6 +214,7 @@ int test_classical_bootstrap(){
 
   Tree* ref_tree = complete_parse_nh(ref_tree_string, &taxname_lookup_table, false); /* sets taxname_lookup_table en passant */
   Tree* boot_tree = complete_parse_nh(boot_tree_string, &taxname_lookup_table, false); /* sets taxname_lookup_table en passant */
+  
   int i,j;
   int common_splits = 0;
   int splits_not_found = 0;
@@ -234,14 +226,16 @@ int test_classical_bootstrap(){
     /* a branch with length == 0 is not to be considered as a valid bipartition */
     
     for (j = 0; j < boot_tree->nb_edges; j++) {
-      if(boot_tree->a_edges[j]->had_zero_length) continue;
+      if(boot_tree->a_edges[j]->had_zero_length){
+        continue;
+      }
+
       /* a branch with length == 0 is not to be considered as a valid bipartition */
-      if (equal_or_complement_id_hashtables(ref_tree->a_edges[i]->hashtbl[1],
-					    boot_tree->a_edges[j]->hashtbl[1],
+      if (equal_or_complement_id_hashtables(ref_tree->a_edges[i]->hashtbl,
+					    boot_tree->a_edges[j]->hashtbl,
 					    ref_tree->nb_taxa)) {
-	//printf("result: splits ARE equal!\n");
-	common_splits++;
-	break;
+	            common_splits++;
+	            break;
       }
     } /* end for on j */
     if (j == boot_tree->nb_edges) splits_not_found++;
@@ -484,6 +478,7 @@ int test_transfer_2(){
   free(i_matrix);
   free(hamming);
   free(min_dist);
+  free_tree(ref_tree);  
 
   fprintf(stderr,"TRANSFER Test 2 : OK\n");
 
@@ -557,8 +552,7 @@ int test_transfer_3(){
   }
 
   free_tree(swap_tree);
-
-
+  
   for (i=0; i<m; i++) {
     free(c_matrix[i]);
     free(i_matrix[i]);
@@ -602,28 +596,7 @@ int test_transfer_4(){
     ref_tree = gen_rand_tree(n, NULL);
     prng_seed_bytes(&new_seed, sizeof(new_seed));
     swap_tree = gen_rand_tree(n, NULL);
-    
-    /* Collapse branches */
-    collapsed_internal = 0;
-    do {
-      collapsed_one = 0; /* flag that will be set to one as soon as we collapse one branch */
-      uncollapsed_terminal = 0;
-      for(i=0; i < ref_tree->nb_edges; i++) {
-	if (ref_tree->a_edges[i]->brlen < thresh) {
-	  if (ref_tree->a_edges[i]->right->nneigh == 1) { /* don't collapse terminal edges */
-	    uncollapsed_terminal++;
-	  }else{
-	    collapse_branch(ref_tree->a_edges[i], ref_tree);
-	    collapse_branch(swap_tree->a_edges[i], swap_tree);
-	    collapsed_one = 1;
-	    collapsed_internal++;
-	    break; /* breaking the for so that we start again from the beginning because tree->a_edges has changed */
-	  }
-	}
-      } /* end for */
-    } while (collapsed_one);
-    /* fprintf(stderr,"Collapsed %d branches\n",collapsed_internal); */
-  
+
     int m = ref_tree->nb_edges;
     int max_branches_boot = ref_tree->nb_taxa*2-2;
     
@@ -707,6 +680,7 @@ int test_transfer_4(){
     free_tree(ref_tree);
     free_tree(swap_tree);
   }
+  fprintf(stderr,"TRANSFER Test 4: OK\n");
   return EXIT_SUCCESS;
 }
 
@@ -735,7 +709,7 @@ int test_randomtree(){
       /* For each Edge we will test the hashtables */
       int e;
       for(e=0;e<rand_tree->nb_edges;e++){
-        id_hash_table_t * h = rand_tree->a_edges[e]->hashtbl[1];
+        id_hash_table_t * h = rand_tree->a_edges[e]->hashtbl;
         id_hash_table_t * h2 = create_id_hash_table(rand_tree->nb_taxa);
         id_hash_table_t * h3 = create_id_hash_table(rand_tree->nb_taxa);
         test_fill_hashtable_post_order(rand_tree->a_edges[e]->left,rand_tree->a_edges[e]->right, rand_tree, h2);
@@ -765,7 +739,7 @@ int test_randomtree(){
 }
 
 int test_id_hash_table_shuffle(){
-  ntax = 1000;
+  int ntax = 1000;
 
   id_hash_table_t * h;
   id_hash_table_t * h2;
@@ -820,7 +794,7 @@ int test_id_hash_table(){
   id_hash_table_t * h4;
   id_hash_table_t * h5;
 
-  ntax=5;
+  int ntax=5;
   h = create_id_hash_table(5);
   h2 = create_id_hash_table(5);
   h3 = create_id_hash_table(5);
@@ -1247,7 +1221,7 @@ int test_remove_taxon(){
   Tree* ref_tree = complete_parse_nh(ref_tree_string, &taxname_lookup_table, false); /* sets taxname_lookup_table en passant */
   int tax_id = get_tax_id_from_tax_name("a", taxname_lookup_table, ref_tree->nb_taxa);
   sum_brlen=0.0;
-  write_nh_tree(ref_tree,stdout);
+  //write_nh_tree(ref_tree,stdout);
   remove_taxon(tax_id,ref_tree);
 
   for(i=0;i<ref_tree->nb_edges;i++){
@@ -1281,7 +1255,7 @@ int test_remove_taxon(){
       return(EXIT_FAILURE);
     }
   }
-  write_nh_tree(ref_tree,stdout);
+  //write_nh_tree(ref_tree,stdout);
   free(taxname_lookup_table);
   taxname_lookup_table=NULL;
   free_tree(ref_tree);
@@ -1311,7 +1285,7 @@ int test_remove_taxon(){
       return(EXIT_FAILURE);
     }
   }
-  write_nh_tree(ref_tree,stdout);
+  //write_nh_tree(ref_tree,stdout);
   free(taxname_lookup_table);
   taxname_lookup_table=NULL;
   free_tree(ref_tree);
@@ -1342,7 +1316,7 @@ int test_remove_taxon(){
     }
   }
 
-  write_nh_tree(ref_tree,stdout);
+ // write_nh_tree(ref_tree,stdout);
   free(taxname_lookup_table);
   taxname_lookup_table=NULL;
   free_tree(ref_tree);
@@ -1351,7 +1325,7 @@ int test_remove_taxon(){
   ref_tree = complete_parse_nh(ref_tree_string, &taxname_lookup_table, false); /* sets taxname_lookup_table en passant */
   tax_id = get_tax_id_from_tax_name("e", taxname_lookup_table, ref_tree->nb_taxa);
   remove_taxon(tax_id,ref_tree);
-  write_nh_tree(ref_tree,stdout);
+  //write_nh_tree(ref_tree,stdout);
 
   free_tree(ref_tree);
   free(taxname_lookup_table); /* which is a (char**) */

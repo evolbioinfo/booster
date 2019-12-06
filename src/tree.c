@@ -28,8 +28,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <ctype.h>
 
 
-int ntax;		/* this global var is set here, in parse_nh */
-
 /* UTILS/DEBUG: counting specific branches or nodes in the tree */
 
 int count_zero_length_branches(Tree* tree) {
@@ -267,7 +265,7 @@ Edge* new_edge(Tree* t) {
 	Edge* ne = (Edge*) malloc(sizeof(Edge));
 	ne->id = t->next_avail_edge_id++;
 	ne->has_branch_support = 0;
-	ne->hashtbl[0] = ne->hashtbl[1] = NULL;
+	ne->hashtbl = NULL;
 	ne->subtype_counts[0] = ne->subtype_counts[1] = NULL;
 	if(ne->id>=t->nb_edges_space){
 		t->nb_edges_space *= 2;
@@ -318,8 +316,7 @@ Tree* copy_tree_rapidTI(Tree* oldt) {
     //Initialize unused stuff:
   newt->taxa_names = NULL;
   newt->taxname_lookup_table = NULL;
-  newt->next_avail_node_id = newt->next_avail_edge_id = newt->length_hashtables
-                           = newt->next_avail_taxon_id = 0;
+  newt->next_avail_node_id = newt->next_avail_edge_id = newt->next_avail_taxon_id = 0;
 
     //Initialize used stuff:
   newt->nb_taxa = oldt->nb_taxa;
@@ -410,7 +407,7 @@ Edge* copy_edge_rapidTI(Edge *old, Node *parent, Node *child) {
   new->subtype_counts[0] = old->subtype_counts[0];   //Unused
   new->subtype_counts[1] = old->subtype_counts[1];   //Unused
   new->has_branch_support = 0;                       //Unused
-  new->hashtbl[0] = new->hashtbl[1] = NULL;          //Ignore the hashtable.
+  new->hashtbl = NULL;         						 //Ignore the hashtable.
   new->had_zero_length = old->had_zero_length;       //Unused
   new->has_branch_support = old->has_branch_support; //Unused
   new->topo_depth = old->topo_depth;                 //Unused
@@ -582,100 +579,6 @@ Node* graft_new_node_on_branch(Edge* target_edge, Tree* tree, double ratio_from_
 	return son;
 }
 
-/* collapsing a branch */
-void collapse_branch(Edge* branch, Tree* tree) {
-	/* this function collapses the said branch and creates a higher-order multifurcation (n1 + n2 - 2 neighbours for the resulting node).
-	   We also have to remove the extra node from tree->a_nodes and the extra edge from t->a_edges.
-	   to be done:
-	   (1) create a new node with n1+n2-2 neighbours. Ultimately we will destroy the original node.
-	   (2) populate its list of neighbours from the lists of neighbours corresponding to the two original nodes
-	   (3) populate its list of neighbouring edges form the br lists of the two original nodes
-	   (4) for each of the neighbours, set the info regarding their new neighbour (that is, our new node)
-	   (5) for each of the neighbouring branches, set the info regarding their new side (that is, our new node)
-	   (6) destroy the two original nodes and commit this info to a_nodes. Modify tree->nb_nodes
-	   (7) destroy the original edge and commit this info to a_edges. Modify tree->nb_edges */
-
-	/* WARNING: this function won't accept to collapse terminal edges */
-	Node *node1 = branch->left, *node2 = branch->right;
-	int i, j, n1 = node1->nneigh, n2 = node2->nneigh;
-	if (n1 == 1 || n2 == 1) { fprintf(stderr,"Warning: %s() won't collapse terminal edges.\n",__FUNCTION__); return; }
-	int degree = n1+n2-2;
-	/* (1) */
-	/* Node* new = new_node("collapsed", tree, n1 + n2 - 2); */ /* we cannot use that because we want to reuse n1's spot in tree->a_nodes */
-	Node* new = (Node*) malloc(sizeof(Node));
-	new->nneigh = degree;
-	new->nneigh_space=degree;
-	new->neigh = malloc(degree * sizeof(Node*));
-	new->br = malloc(degree * sizeof(Edge*));
-	new->id = node1->id; /* because we are going to store the node at this index in tree->a_nodes */
-	new->name = strdup("collapsed");
-	new->comment = NULL;
-	new->mheight = min_int(node1->mheight, node2->mheight);
-
-	/* very important: set tree->node0 to new in case it was either node1 or node2 */
-	if (tree->node0 == node1 || tree->node0 == node2) tree->node0 = new;
-
-
-	int ind = 0; /* index in the data structures in new */
-	/* (2) and (3) and (4) and (5) */
-	for (i=0; i < n1; i++) {
-		if (node1->neigh[i] == node2) continue;
-		new->neigh[ind] = node1->neigh[i];
-		/*  then change one of the neighbours of that neighbour to be the new node... */
-		for (j=0; j < new->neigh[ind]->nneigh; j++) {
-			if(new->neigh[ind]->neigh[j] == node1) {
-				new->neigh[ind]->neigh[j] = new;
-				break;
-			}
-		} /* end for j */
-
-		new->br[ind] = node1->br[i];
-		/* then change one of the two ends of that branch to be the new node... */
-		if (new->neigh[ind] == new->br[ind]->right) new->br[ind]->left = new; else new->br[ind]->right = new; 
-		ind++;
-	}
-
-	for (i=0; i < n2; i++) {
-		if (node2->neigh[i] == node1) continue;
-		new->neigh[ind] = node2->neigh[i];
-		/*  then change one of the neighbours of that neighbour to be the new node... */
-		for (j=0; j < new->neigh[ind]->nneigh; j++) {
-			if(new->neigh[ind]->neigh[j] == node2) {
-				new->neigh[ind]->neigh[j] = new;
-				break;
-			}
-		} /* end for j */
-
-		new->br[ind] = node2->br[i];
-		/* then change one of the two ends of that branch to be the new node... */
-		if (new->neigh[ind] == new->br[ind]->right) new->br[ind]->left = new; else new->br[ind]->right = new; 
-		ind++;
-	}
-
-	/* (6) tidy up tree->a_nodes and destroy old nodes */
-	assert(tree->a_nodes[new->id] == node1);
-	tree->a_nodes[new->id] = new;
-	/* current last node in tree->a_edges changes id and is now placed at the position were node2 was */
-	int id2 = node2->id;
-	assert(tree->a_nodes[id2] == node2);
-	tree->a_nodes[id2] = tree->a_nodes[-- tree->next_avail_node_id]; /* moving the last node into the spot occupied by node2... */
-	tree->a_nodes[id2]->id = id2;					/* and changing its id accordingly */
-	tree->a_nodes[tree->next_avail_node_id] = NULL; /* not strictly necessary, but... */
-	tree->nb_nodes--;
-	free_node(node1);
-	free_node(node2);
-
-	/* (7) tidy up tree->a_edges and destroy the old branch */
-	assert(tree->a_edges[branch->id] == branch);
-	tree->a_edges[branch->id] = tree->a_edges[-- tree->next_avail_edge_id]; /* moving the last branch into the spot occupied by 'branch' */
-	tree->a_edges[branch->id]->id = branch->id; 				/* ... and changing its id accordingly */
-	tree->a_edges[tree->next_avail_edge_id] = NULL; /* not strictly necessary, but... */
-	tree->nb_edges--;
-	free_edge(branch);
-
-} /* end collapse_branch */
-
-
 /**
    This function removes a taxon from the tree (identified by its taxon_id)
    And recomputed the branch length of the branch it was branched on.
@@ -833,28 +736,15 @@ void remove_taxon(int taxon_id, Tree* tree){
      We update the hashtables
    */
   for(i=0;i<tree->nb_edges;i++){
-    free_id_hashtable(tree->a_edges[i]->hashtbl[1]);
+    free_id_hashtable(tree->a_edges[i]->hashtbl);
   }
-  tree->length_hashtables = (int)((tree->nb_taxa-1) / ceil(log10((double)(tree->nb_taxa-1))));
   for(i=0;i<tree->nb_edges;i++){
-    tree->a_edges[i]->hashtbl[0] = create_id_hash_table(tree->length_hashtables);
-    tree->a_edges[i]->hashtbl[1] = create_id_hash_table(tree->length_hashtables);
+    tree->a_edges[i]->hashtbl = create_id_hash_table(tree->nb_taxa);
   }
   tree->nb_taxa--;
-  ntax--;
   update_hashtables_post_alltree(tree);
-  update_hashtables_pre_alltree(tree);
   update_node_heights_post_alltree(tree);
   update_node_heights_pre_alltree(tree);
-
-  /**
-     now for all the branches we can delete the **left** hashtables, because the information is redundant and
-     we have the equal_or_complement function to compare hashtables
-  */
-  for (i = 0; i < tree->nb_edges; i++) {
-    free_id_hashtable(tree->a_edges[i]->hashtbl[0]); 
-    tree->a_edges[i]->hashtbl[0] = NULL;
-  }
 
   /**
      topological depths of branches
@@ -1086,26 +976,16 @@ void shuffle_taxa(Tree *tree){
      We update the hashtables
    */
   for(i=0;i<tree->nb_edges;i++){
-    free_id_hashtable(tree->a_edges[i]->hashtbl[1]);
+    free_id_hashtable(tree->a_edges[i]->hashtbl);
   }
   for(i=0;i<tree->nb_edges;i++){
-    tree->a_edges[i]->hashtbl[0] = create_id_hash_table(tree->length_hashtables);
-    tree->a_edges[i]->hashtbl[1] = create_id_hash_table(tree->length_hashtables);
+    tree->a_edges[i]->hashtbl = create_id_hash_table(tree->nb_taxa);
   }
 
   update_hashtables_post_alltree(tree);
-  update_hashtables_pre_alltree(tree);
   update_node_heights_post_alltree(tree);
   update_node_heights_pre_alltree(tree);
-  
-  /**
-     now for all the branches we can delete the **left** hashtables, because the information is redundant and
-     we have the equal_or_complement function to compare hashtables
-  */
-  for (i = 0; i < tree->nb_edges; i++) {
-    free_id_hashtable(tree->a_edges[i]->hashtbl[0]); 
-    tree->a_edges[i]->hashtbl[0] = NULL;
-  }
+
   /**
      topological depths of branches
   */
@@ -1203,7 +1083,7 @@ void unrooted_to_rooted(Tree* t) {
 	/* copying hashtables */
 	assert(br0->right == son0); /* descendant */
 	/* the hashtable for br0 is not modified: subtree rooted on son0 remains same */
-	new_br->hashtbl[1] = complement_id_hashtbl(br0->hashtbl[1], t->nb_taxa);
+	new_br->hashtbl = complement_id_hashtbl(br0->hashtbl, t->nb_taxa);
 	/* WARNING: not dealing with subtype counts nor topological depth */
 
 	new_root->neigh[0] = son0;
@@ -1273,8 +1153,6 @@ Edge* connect_to_father(Node* father, Node* son, Tree* current_tree) {
 	}
 	current_tree->a_edges[edge->id] = edge;
 	current_tree->nb_edges++;
-	edge->hashtbl[0] = create_id_hash_table(current_tree->length_hashtables);
-	edge->hashtbl[1] = create_id_hash_table(current_tree->length_hashtables);
 
 	// for (i=0; i<2; i++) edge->subtype_counts[i] = (int*) calloc(NUM_SUBTYPES, sizeof(int));
 	for (int i=0; i<2; i++) edge->subtype_counts[i] = NULL; /* subtypes.c will have to create that space */
@@ -1283,6 +1161,7 @@ Edge* connect_to_father(Node* father, Node* son, Tree* current_tree) {
 	edge->left = father;
 
 	edge->has_branch_support = 0;
+	edge->had_zero_length = 1;
 
 	// Resize arrays if necessary
 	if(father->nneigh>=father->nneigh_space){
@@ -1487,6 +1366,7 @@ char parse_recur(Tree* t, char* in_str, int* position, int in_length, Node* node
 				(*position)++;
 			}
 			edge->brlen = (len < MIN_BRLEN ? MIN_BRLEN : len);
+			edge->had_zero_length = (len < MIN_BRLEN);
 			break;
 		case ',':
 			new_node = NULL;
@@ -1562,7 +1442,7 @@ Tree *complete_parse_nh(char* big_string, char*** taxname_lookup_table,
  	Tree* mytree = parse_nh_string(big_string);
 	mytree->leaves = allocateLA(mytree->nb_taxa);
 		
-	if(mytree == NULL) { fprintf(stderr,"Not a syntactically correct NH tree.\n"); return NULL; }
+	if(mytree == NULL) { 	fprintf(stderr,"Not a syntactically correct NH tree.\n"); return NULL; }
 
 	if(*taxname_lookup_table == NULL)
 	  *taxname_lookup_table = build_taxname_lookup_table(mytree);
@@ -1572,30 +1452,13 @@ Tree *complete_parse_nh(char* big_string, char*** taxname_lookup_table,
 
   // Skip these (quadratic-time operations) for the rapid TBE calculation:
   if(!skip_hashtables) {
-	  mytree->length_hashtables = (int) (mytree->nb_taxa / ceil(log10((double)mytree->nb_taxa)));
-    
-	  update_hashtables_post_alltree(mytree);
-	  update_hashtables_pre_alltree(mytree);
+	  for(int i_edge=0;i_edge<mytree->nb_edges;i_edge++){
+	    mytree->a_edges[i_edge]->hashtbl = create_id_hash_table(mytree->nb_taxa);
+	  }
 
+	  update_hashtables_post_alltree(mytree);
 	  update_node_heights_post_alltree(mytree);
 	  update_node_heights_pre_alltree(mytree);
-
-	  /* for all branches in the tree, we should assert that the sum of the number of taxa on the left
-	     and on the right of the branch is equal to tree->nb_taxa */
-	  for (i = 0; i < mytree->nb_edges; i++)
-	  	if(!mytree->a_edges[i]->had_zero_length)
-	  		assert(mytree->a_edges[i]->hashtbl[0]->num_items
-	  		     + mytree->a_edges[i]->hashtbl[1]->num_items
-	  		    == mytree->nb_taxa);
-
-
-	  /* now for all the branches we can delete the **left** hashtables, because the information is redundant and
-	     we have the equal_or_complement function to compare hashtables */
-
-	  for (i = 0; i < mytree->nb_edges; i++) {
-	  	free_id_hashtable(mytree->a_edges[i]->hashtbl[0]); 
-	  	mytree->a_edges[i]->hashtbl[0] = NULL;
-	  }
 
 	  /* topological depths of branches */
 	  update_all_topo_depths_from_hashtables(mytree);
@@ -1605,7 +1468,6 @@ Tree *complete_parse_nh(char* big_string, char*** taxname_lookup_table,
 
 	return mytree;
 }
-
 
 
 /* taxname lookup table functions */
@@ -1864,13 +1726,10 @@ void prepare_rapid_TI_pre(Tree* tree) {
 void update_all_topo_depths_from_hashtables(Tree* tree) {
 	int i, m, n = tree->nb_taxa;
 	for (i = 0; i < tree->nb_edges; i++) {
-		m = tree->a_edges[i]->hashtbl[1]->num_items;
+		m = tree->a_edges[i]->hashtbl->num_items;
 		tree->a_edges[i]->topo_depth = min_int(m, n-m);
 	}
 } /* end update_all_topo_depths_from_hashtables */
-
-
-
 
 int greatest_topo_depth(Tree* tree) {
 	/* returns the greatest branch depth in the tree */
@@ -1880,8 +1739,6 @@ int greatest_topo_depth(Tree* tree) {
 	}
 	return greatest;
 } /* end greatest_topo_depth */
-
-
 
 /* WORKING WITH HASHTABLES */
 
@@ -1895,54 +1752,20 @@ void update_hashtables_post_doer(Node* current, Node* orig, Tree* t) {
 	for(i=1 ; i < n ; i++) {
 		br2 = current->br[(curr_to_orig + i)%n];
 		/* we are going to update the info on br with the info from br2 */
-		update_id_hashtable(br2->hashtbl[current==br2->left], /* source */
-					    br->hashtbl[current==br->right]); /* dest */
+		update_id_hashtable(br2->hashtbl /* source */, br->hashtbl /* dest */);
 	}
 
 	/* but if n = 1 we haven't done anything (leaf): we must put the info corresponding to the taxon into the branch */
 	if (n == 1) {
 		assert(br->right == current);
 		/* add the id of the taxon to the right hashtable of the branch */
-		add_id(br->hashtbl[1],get_tax_id_from_tax_name(current->name, t->taxname_lookup_table, t->nb_taxa));
+		add_id(br->hashtbl, get_tax_id_from_tax_name(current->name, t->taxname_lookup_table, t->nb_taxa));
 	}
 } /* end update_hashtables_post_doer */
-
-
-void update_hashtables_pre_doer(Node* current, Node* orig, Tree* t) {
-	/* we are going to update one of the two hashtables sitting on the branch between current and orig. */
-	if (orig==NULL) return;
-	int i, n = orig->nneigh;
-	int orig_to_curr = dir_a_to_b(orig, current); 
-	Edge* br = orig->br[orig_to_curr], *br2; /* br: current to orig; br2: any _other_ branch from orig */
-	id_hash_table_t* hash_to_update = br->hashtbl[current==br->left];
-
-	/* if current is a leaf we just put in the left hashtable the full hashtable minus the taxon on the leaf */
-	if (current->nneigh == 1) {
-		assert(current == br->right); /* leaf should be on the right of the branch */
-		//fill_id_hashtable(hash_to_update, t->nb_taxa);	
-		//delete_id(hash_to_update, get_tax_id_from_tax_name(current->name, t->taxname_lookup_table, t->nb_taxa));
-		complement_id_hashtable(hash_to_update /*dest*/, br->hashtbl[1] /*source*/, t->nb_taxa);
-		return;
-	}
-
-	/* else we are going to update that hashtable with the info from the _other_ neighbours of the origin node. Origin can never be a leaf. */
-	for(i=1 ; i < n ; i++) {
-		br2 = orig->br[(orig_to_curr + i)%n];
-		/* we are going to update the info on br with the info from br2 */
-		update_id_hashtable(br2->hashtbl[orig==br2->left], /* source */
-					    hash_to_update); /* dest */
-	}
-} /* end update_hashtables_pre_doer */
-
 
 void update_hashtables_post_alltree(Tree* tree) {
 	post_order_traversal(tree, &update_hashtables_post_doer);
 } /* end of update_hashtables_post_alltree */
-
-void update_hashtables_pre_alltree(Tree* tree) {
-	pre_order_traversal(tree, &update_hashtables_pre_doer);
-} /* end of update_hashtables_pre_alltree */
-
 
 
 /* UNION AND INTERSECT CALCULATIONS (FOR THE TRANSFER METHOD) */
@@ -2067,14 +1890,13 @@ void update_i_c_post_order_boot_tree(Tree* ref_tree, Tree* boot_tree, Node* orig
 	for (i=0; i<ref_tree->nb_edges; i++) { /* for all the edges of ref_tree */ 
 		/* at this point we can calculate in all cases (internal branch or not) the Hamming distance at [i][edge_id], */
 		hamming[i][edge_id] = /* card of union minus card of intersection */ 
-			ref_tree->a_edges[i]->hashtbl[1]->num_items /* #taxa in the cluster i of T_ref */
+			ref_tree->a_edges[i]->hashtbl->num_items /* #taxa in the cluster i of T_ref */
 			+ c_matrix[i][edge_id] /* #taxa in cluster edge_id of T_boot BUT NOT in cluster i of T_ref */
 			- i_matrix[i][edge_id]; /* #taxa in the intersection of the two clusters */
 
 		/* NEW!! Let's immediately calculate the right ditance, taking into account the fact that the true disance is min (dist, N-dist) */
 		if (hamming[i][edge_id] > N/2 /* floor value */) hamming[i][edge_id] = N - hamming[i][edge_id];
 		
-
 		/*   and update the min of all Hamming (TRANSFER) distances hamming[i][j] over all j */
 		if (hamming[i][edge_id] < min_dist[i]){
 			min_dist[i] = hamming[i][edge_id];
@@ -2158,8 +1980,7 @@ void write_subtree_to_stream(Node* node, Node* node_from, FILE* stream) {
 void free_edge(Edge* edge) {
 	int i;
 	if (edge == NULL) return;
-	if(edge->hashtbl[0]) free_id_hashtable(edge->hashtbl[0]);
-	if(edge->hashtbl[1]) free_id_hashtable(edge->hashtbl[1]);
+	if(edge->hashtbl) free_id_hashtable(edge->hashtbl);
 	for (i=0; i<2; i++) if(edge->subtype_counts[i]) free(edge->subtype_counts[i]);
 	
 	free(edge);
@@ -2194,89 +2015,8 @@ void free_tree(Tree* tree) {
 	free(tree);
 }
 
-Tree * gen_rand_tree(int nbr_taxa, char **taxa_names){
-  int taxon;
-  Tree *my_tree;
-  int* indices = (int*) calloc(nbr_taxa, sizeof(int)); /* the array that we are going to shuffle around to get random order in the taxa names */
-  /* zero the number of taxa inserted so far in this tree */
-  int nb_inserted_taxa = 0;
-
-  int i_edge, edge_ind;
-  
-  for(taxon = 0; taxon < nbr_taxa; taxon++)
-    indices[taxon] = taxon;
-
-  shuffle(indices, nbr_taxa, sizeof(int));
-  
-  if(taxa_names == NULL){
-    taxa_names = (char**) calloc(nbr_taxa, sizeof(char*));
-    for(taxon = 0; taxon < nbr_taxa; taxon++) {
-      taxa_names[taxon] = (char*) calloc((int)(log10(nbr_taxa)+2), sizeof(char));
-      sprintf(taxa_names[taxon],"%d",taxon+1); /* names taxa by a mere integer, starting with "1" */
-    }
-  }
-  
-  /* create a new tree */
-  my_tree = new_tree(taxa_names[indices[nb_inserted_taxa++]]);
-  
-  /* graft the second taxon */
-  graft_new_node_on_branch(NULL, my_tree, 0.5, 1.0, taxa_names[indices[nb_inserted_taxa++]]);
-  
-  while(nb_inserted_taxa < nbr_taxa) {
-    /* select a branch at random */
-    edge_ind = rand_to(my_tree->nb_edges); /* outputs something between 0 and (nb_edges) exclusive */
-    graft_new_node_on_branch(my_tree->a_edges[edge_ind], my_tree, 0.5, 1.0, taxa_names[indices[nb_inserted_taxa++]]);
-  } /* end looping on the taxa, tree is full */
-  
-  /* here we need to re-root the tree on a trifurcated node, not on a leaf, before we write it in NH format */
-  reroot_acceptable(my_tree);
-
-  for(i_edge = 0; i_edge < my_tree->nb_edges; i_edge++){
-    my_tree->a_edges[i_edge]->brlen = normal(0.1, 0.05);
-    if(my_tree->a_edges[i_edge]->brlen < 0)
-      my_tree->a_edges[i_edge]->brlen = 0;
-  }
-
-  my_tree->length_hashtables = (int) (my_tree->nb_taxa / ceil(log10((double)my_tree->nb_taxa)));
-  ntax = nbr_taxa;
-  my_tree->taxname_lookup_table = build_taxname_lookup_table(my_tree);
-  
-  for(i_edge=0;i_edge<my_tree->nb_edges;i_edge++){
-    my_tree->a_edges[i_edge]->hashtbl[0] = create_id_hash_table(my_tree->length_hashtables);
-    my_tree->a_edges[i_edge]->hashtbl[1] = create_id_hash_table(my_tree->length_hashtables);
-  }
-
-  update_hashtables_post_alltree(my_tree);
-  update_hashtables_pre_alltree(my_tree);
-  update_node_heights_post_alltree(my_tree);
-  update_node_heights_pre_alltree(my_tree);
-
-  
-  /* for all branches in the tree, we should assert that the sum of the number of taxa on the left
-     and on the right of the branch is equal to tree->nb_taxa */
-  for (i_edge = 0; i_edge < my_tree->nb_edges; i_edge++)
-    if(!my_tree->a_edges[i_edge]->had_zero_length)
-      assert(my_tree->a_edges[i_edge]->hashtbl[0]->num_items
-	     + my_tree->a_edges[i_edge]->hashtbl[1]->num_items
-	     == my_tree->nb_taxa);
-
-  /* now for all the branches we can delete the **left** hashtables, because the information is redundant and
-     we have the equal_or_complement function to compare hashtables */
-  
-  for (i_edge = 0; i_edge < my_tree->nb_edges; i_edge++) {
-    free_id_hashtable(my_tree->a_edges[i_edge]->hashtbl[0]); 
-    my_tree->a_edges[i_edge]->hashtbl[0] = NULL;
-  }
-
-  /* topological depths of branches */
-  update_all_topo_depths_from_hashtables(my_tree);
-  prepare_rapid_TI(my_tree);
-  return(my_tree);
-}
-
 /* ____________________________________________________________ */
 /* Functions added for rapid computation of the Transfer Index. */
-
 
 /*
 Allocate a LeafArray of this size.
@@ -2673,7 +2413,7 @@ Return true if the given pair of nodes represent the same taxon (possibly in
 different trees).
 */
 bool same_taxon(const Node *l1, const Node *l2) {
-  return equal_id_hashtables(l1->br[0]->hashtbl[1], l2->br[0]->hashtbl[1]);
+  return equal_id_hashtables(l1->br[0]->hashtbl, l2->br[0]->hashtbl);
 }
 
 
@@ -2695,9 +2435,9 @@ Return <0 if n1 should go before, 0 if equal, and 1 if n1 should go after n2.
 */
 int compare_nodes_bitarray(const void *l1, const void *l2) {
     //Test the relationship between succesive longs:
-  for(int chunk = 0; chunk < nbchunks_bitarray; chunk++) {
-    unsigned long chunk1 = (*(Node**)l1)->br[0]->hashtbl[1]->bitarray[chunk];
-    unsigned long chunk2 = (*(Node**)l2)->br[0]->hashtbl[1]->bitarray[chunk];
+  for(int chunk = 0; chunk < (*(Node**)l1)->br[0]->hashtbl->nchunks; chunk++) {
+    unsigned long chunk1 = (*(Node**)l1)->br[0]->hashtbl->bitarray[chunk];
+    unsigned long chunk2 = (*(Node**)l2)->br[0]->hashtbl->bitarray[chunk];
     if(chunk1 < chunk2)
       return -1;
     else if(chunk1 > chunk2)

@@ -62,35 +62,16 @@ Tree* gen_random_tree(Tree *tree){
 
   my_tree->taxname_lookup_table = tree->taxname_lookup_table;
   my_tree->nb_taxa = tree->nb_taxa;
-  my_tree->length_hashtables = (int) (my_tree->nb_taxa / ceil(log10((double)my_tree->nb_taxa)));
 
   int e;
   for(e=0;e<my_tree->nb_edges;e++){
-    my_tree->a_edges[e]->hashtbl[0] = create_id_hash_table(my_tree->length_hashtables);
-    my_tree->a_edges[e]->hashtbl[1] = create_id_hash_table(my_tree->length_hashtables);
+    my_tree->a_edges[e]->hashtbl = create_id_hash_table(my_tree->nb_taxa);
   }
   /* write_nh_tree(my_tree,stdout); */
 
   update_hashtables_post_alltree(my_tree);
-  update_hashtables_pre_alltree(my_tree);
   update_node_heights_post_alltree(my_tree);
   update_node_heights_pre_alltree(my_tree);
-
-  /* for all branches in the tree, we should assert that the sum of the number of taxa on the left
-     and on the right of the branch is equal to tree->nb_taxa */
-  for (i = 0; i < my_tree->nb_edges; i++)
-    if(!my_tree->a_edges[i]->had_zero_length)
-      assert(my_tree->a_edges[i]->hashtbl[0]->num_items
-	     + my_tree->a_edges[i]->hashtbl[1]->num_items
-	     == my_tree->nb_taxa);
-
-  /* now for all the branches we can delete the **left** hashtables, because the information is redundant and
-     we have the equal_or_complement function to compare hashtables */
-  
-  for (i = 0; i < my_tree->nb_edges; i++) {
-    free_id_hashtable(my_tree->a_edges[i]->hashtbl[0]); 
-    my_tree->a_edges[i]->hashtbl[0] = NULL;
-  }
 
   /* topological depths of branches */
   update_all_topo_depths_from_hashtables(my_tree);
@@ -98,6 +79,68 @@ Tree* gen_random_tree(Tree *tree){
 
   my_tree->leaves = allocateLA(my_tree->nb_taxa);
   
+  prepare_rapid_TI(my_tree);
+  return(my_tree);
+}
+
+
+Tree * gen_rand_tree(int nbr_taxa, char **taxa_names){
+  int taxon;
+  Tree *my_tree;
+  int* indices = (int*) calloc(nbr_taxa, sizeof(int)); /* the array that we are going to shuffle around to get random order in the taxa names */
+  /* zero the number of taxa inserted so far in this tree */
+  int nb_inserted_taxa = 0;
+
+  int i_edge, edge_ind;
+  
+  for(taxon = 0; taxon < nbr_taxa; taxon++)
+    indices[taxon] = taxon;
+
+  shuffle(indices, nbr_taxa, sizeof(int));
+  
+  if(taxa_names == NULL){
+    taxa_names = (char**) calloc(nbr_taxa, sizeof(char*));
+    for(taxon = 0; taxon < nbr_taxa; taxon++) {
+      taxa_names[taxon] = (char*) calloc((int)(log10(nbr_taxa)+2), sizeof(char));
+      sprintf(taxa_names[taxon],"%d",taxon+1); /* names taxa by a mere integer, starting with "1" */
+    }
+  }
+  
+  /* create a new tree */
+  my_tree = new_tree(taxa_names[indices[nb_inserted_taxa++]]);
+  
+  /* graft the second taxon */
+  graft_new_node_on_branch(NULL, my_tree, 0.5, 1.0, taxa_names[indices[nb_inserted_taxa++]]);
+  
+  while(nb_inserted_taxa < nbr_taxa) {
+    /* select a branch at random */
+    edge_ind = rand_to(my_tree->nb_edges); /* outputs something between 0 and (nb_edges) exclusive */
+    graft_new_node_on_branch(my_tree->a_edges[edge_ind], my_tree, 0.5, 1.0, taxa_names[indices[nb_inserted_taxa++]]);
+  } /* end looping on the taxa, tree is full */
+  
+  /* here we need to re-root the tree on a trifurcated node, not on a leaf, before we write it in NH format */
+  reroot_acceptable(my_tree);
+
+  for(i_edge = 0; i_edge < my_tree->nb_edges; i_edge++){
+    my_tree->a_edges[i_edge]->brlen = normal(0.1, 0.05);
+    if(my_tree->a_edges[i_edge]->brlen < 0)
+      my_tree->a_edges[i_edge]->brlen = 0;
+    my_tree->a_edges[i_edge]->had_zero_length = (my_tree->a_edges[i_edge]->brlen < MIN_BRLEN);
+  }
+
+  my_tree->taxname_lookup_table = build_taxname_lookup_table(my_tree);
+  
+  for(i_edge=0;i_edge<my_tree->nb_edges;i_edge++){
+    my_tree->a_edges[i_edge]->hashtbl = create_id_hash_table(my_tree->nb_taxa);
+  }
+
+  update_hashtables_post_alltree(my_tree);
+  update_node_heights_post_alltree(my_tree);
+  update_node_heights_pre_alltree(my_tree);
+
+  /* topological depths of branches */
+  update_all_topo_depths_from_hashtables(my_tree);
+  my_tree->leaves = allocateLA(my_tree->nb_taxa);
   prepare_rapid_TI(my_tree);
   return(my_tree);
 }

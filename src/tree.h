@@ -110,7 +110,7 @@ typedef struct __Edge {
 	double brlen;
 	double branch_support;
 	int* subtype_counts[2];			/* first index is 0 for the left of the branch, 1 for its right side */
-	id_hash_table_t *hashtbl[2];		/* hashtables containing the ids of the taxa in each subtree */
+	id_hash_table_t *hashtbl;		/* bit vector containing the ids of the taxa in each subtree */
    
 						/* index 0 corresponds to the left of the branch, index 1 to its right.
 						   following our implementation, we only keep hashtbl[1] populated. */
@@ -136,7 +136,6 @@ typedef struct __Tree {
   	int nb_nodes_space; // Space currently allocated for nodes
   
 	char** taxa_names; /* store only once the taxa names */
-	int length_hashtables; /* the number of chained lists in the hashtables on the edges */
 	int next_avail_node_id;
 	int next_avail_edge_id;
 	int next_avail_taxon_id;
@@ -316,7 +315,6 @@ int greatest_topo_depth(Tree* tree);
 /* WORKING WITH HASHTABLES */
 
 void update_hashtables_post_doer(Node* current, Node* orig, Tree* t);
-void update_hashtables_pre_doer(Node* current, Node* orig, Tree* t);
 
 void update_hashtables_post_alltree(Tree* tree);
 void update_hashtables_pre_alltree(Tree* tree);

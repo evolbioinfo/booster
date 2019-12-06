@@ -31,16 +31,16 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 id_hash_table_t* create_id_hash_table(int size)
 {
-	/* here we leave the size parameter for compatibility with the old hashtable implementation,
-	   but this parameter IS NOT USED in this one. We use the static variable nbchunks_bitarray insead. */
     id_hash_table_t *new_table = (id_hash_table_t*) malloc(sizeof(id_hash_table_t));
     new_table->num_items = 0;
+    new_table->nchunks =  (size/chunksize + (size%chunksize != 0 ? 1 : 0));
 
     /* Attempt to allocate and initialize to 0 the memory for the bitfield  */
-    if ((new_table->bitarray = (bfield_t) calloc(nbchunks_bitarray, sizeof(unsigned long))) == NULL)
+    if ((new_table->bitarray = (bfield_t) calloc(new_table->nchunks, sizeof(unsigned long))) == NULL)
         return NULL;
-    else
+    else{
     	return new_table;
+	}
 }
 
 id_hash_table_t* complement_id_hashtbl(id_hash_table_t* h, int nbtaxa) {
@@ -58,7 +58,7 @@ id_hash_table_t* complement_id_hashtbl(id_hash_table_t* h, int nbtaxa) {
 int lookup_id(id_hash_table_t *hashtable, Taxon_id my_id)
 {
     /* Returns whether the taxon is in the hashtable */ 
-	if(my_id >= ntax) {
+	if(my_id >= hashtable->nchunks*chunksize) {
 	  fprintf(stderr,"Error in %s: taxon ID %d is out of range. Aborting.\n", __FUNCTION__, my_id);
 	  Generic_Exit(__FILE__,__LINE__,__FUNCTION__,EXIT_FAILURE);
 	}	       
@@ -112,7 +112,7 @@ int delete_id(id_hash_table_t *hashtable, Taxon_id my_id)
 
 void clear_id_hashtable(id_hash_table_t *hashtable) { /* clears completely the hashtable (no taxa) */
 	int chunk;
-	for (chunk = 0; chunk < nbchunks_bitarray; chunk++) hashtable->bitarray[chunk] = 0UL;
+	for (chunk = 0; chunk < hashtable->nchunks; chunk++) hashtable->bitarray[chunk] = 0UL;
 	hashtable->num_items = 0;
 }
 
@@ -120,7 +120,7 @@ void clear_id_hashtable(id_hash_table_t *hashtable) { /* clears completely the h
 void fill_id_hashtable(id_hash_table_t *hashtable, int nb_taxa) { /* sets all bits to 1 in the whole hashtable (all taxa) */
 	int chunk;
 	unsigned long full_one = ~(0UL);
-	for (chunk = 0; chunk < nbchunks_bitarray; chunk++) hashtable->bitarray[chunk] = full_one;
+	for (chunk = 0; chunk < hashtable->nchunks; chunk++) hashtable->bitarray[chunk] = full_one;
 	/* the last bits of the last chunk are MEANINGLESS when chunksize is not a divisor of nb_taxa. */
 	hashtable->num_items = nb_taxa;
 }
@@ -128,7 +128,7 @@ void fill_id_hashtable(id_hash_table_t *hashtable, int nb_taxa) { /* sets all bi
 void complement_id_hashtable(id_hash_table_t *destination, const id_hash_table_t *source, int nb_taxa) {
 	/* transforms destination into the complement of source */
 	int chunk;
-	for (chunk = 0; chunk < nbchunks_bitarray; chunk++) destination->bitarray[chunk] = ~(source->bitarray[chunk]);
+	for (chunk = 0; chunk < destination->nchunks; chunk++) destination->bitarray[chunk] = ~(source->bitarray[chunk]);
 	destination->num_items = nb_taxa - source->num_items;
 }
 
@@ -148,7 +148,7 @@ void update_id_hashtable(id_hash_table_t *source, id_hash_table_t *destination) 
 	int chunk;
 	unsigned int added;
 
-	for (chunk = 0; chunk < nbchunks_bitarray; chunk++) {
+	for (chunk = 0; chunk < source->nchunks; chunk++) {
 		/* we first need to know how many new taxa we are going to add in destination */
 		added = bitCount(source->bitarray[chunk] & ~destination->bitarray[chunk]); /* 1 in source AND O in dest */
 		if (added) {
@@ -169,9 +169,10 @@ int equal_id_hashtables(id_hash_table_t *tbl1, id_hash_table_t *tbl2) {
 							    same number of stored elements */
 	int chunk;
 	/* we simply test the equality of the successive longs */
-	for (chunk = 0; chunk < nbchunks_bitarray; chunk++) {
+	for (chunk = 0; chunk < tbl1->nchunks; chunk++) {
 		if (tbl1->bitarray[chunk] != tbl2->bitarray[chunk]) return 0;
 	}
+
 	/* here all the ids in tbl1 have been found also in tbl2, and the two tables have same size: */
 	return 1;
 
@@ -199,7 +200,7 @@ int complement_id_hashtables(id_hash_table_t *tbl1, id_hash_table_t *tbl2,int nb
 	==> OK
 	The mask is (((unsigned long)1 << (nb_taxa%chunksize)) - 1);
    */
-  for (chunk = 0; chunk < nbchunks_bitarray; chunk++) {
+  for (chunk = 0; chunk < tbl1->nchunks; chunk++) {
     /* Initialize Mask with 1111....11*/
     unsigned long mask = -1;
     if(nb_taxa<(chunk+1)*chunksize){
@@ -213,7 +214,7 @@ int complement_id_hashtables(id_hash_table_t *tbl1, id_hash_table_t *tbl2,int nb
 
 
 int equal_or_complement_id_hashtables(id_hash_table_t *tbl1, id_hash_table_t *tbl2, int total) {
-  return(complement_id_hashtables(tbl1,tbl2,total) ||
+	return(complement_id_hashtables(tbl1,tbl2,total) ||
 	 equal_id_hashtables(tbl1,tbl2));
 } /* end equal_or_complement_id_hashtables */
 
@@ -252,7 +253,7 @@ void print_id_hashtable(FILE* stream, id_hash_table_t *hashtable, int nbtaxa) {
 	int i, chunk;
 	unsigned long mylong, base = 0, mask = 1, true_index;
 	char c;
-   	for (chunk = 0; chunk < nbchunks_bitarray; chunk++) {
+   	for (chunk = 0; chunk < hashtable->nchunks; chunk++) {
 		mylong = hashtable->bitarray[chunk];
 		for (i = 0; i < chunksize; i++) { /* for all the bits in the unsigned long, starting with the LSB */
 			true_index = base + i;

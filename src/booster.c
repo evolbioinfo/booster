@@ -371,7 +371,7 @@ void fbp(Tree *ref_tree, char **alt_tree_strings,char** taxname_lookup_table, in
 
   for(i=0; i< ref_tree->nb_edges; i++){
     nb_found[i] = 0;
-    bitset_hashmap_putvalue(hm,ref_tree->a_edges[i]->hashtbl[1],ref_tree->nb_taxa,i);
+    bitset_hashmap_putvalue(hm,ref_tree->a_edges[i]->hashtbl,ref_tree->nb_taxa,i);
   }
 
  
@@ -394,7 +394,7 @@ void fbp(Tree *ref_tree, char **alt_tree_strings,char** taxname_lookup_table, in
     /****************************************************/		  
     for (j = 0; j <  alt_tree->nb_edges; j++) {
       // We query the hashmap to see if the edge is present, and then get its reference index
-      int refindex = bitset_hashmap_value(hm, alt_tree->a_edges[j]->hashtbl[1], alt_tree->nb_taxa);
+      int refindex = bitset_hashmap_value(hm, alt_tree->a_edges[j]->hashtbl, alt_tree->nb_taxa);
       if (refindex>-1){
         #pragma omp atomic update
         nb_found[refindex]++;
@@ -536,7 +536,7 @@ void tbe(bool rapid, Tree *ref_tree, Tree *ref_raw_tree,
       /* the bootstrap value for a branch is inscribed as the name of its descendant (always right side of the edge, by convention) */
       if(ref_tree->a_edges[i]->right->name) free(ref_tree->a_edges[i]->right->name); /* clear name if existing */
       ref_tree->a_edges[i]->right->name = (char*) malloc(16 * sizeof(char));
-      card = ref_tree->a_edges[i]->hashtbl[1]->num_items;
+      card = ref_tree->a_edges[i]->hashtbl->num_items;
       if (card > n/2) { card = n - card; }	  
       avg_dist      = (double) trans_ind[i] * 1.0 / num_trees;
       bootstrap_val = (double) 1.0 - avg_dist * 1.0 / (1.0 * ref_tree->a_edges[i]->topo_depth-1.0);
@@ -552,7 +552,7 @@ void tbe(bool rapid, Tree *ref_tree, Tree *ref_raw_tree,
         /* the bootstrap value for a branch is inscribed as the name of its descendant as id|avgdist|depth */
         if(ref_raw_tree->a_edges[i]->right->name) free(ref_raw_tree->a_edges[i]->right->name); /* clear name if existing */
         ref_raw_tree->a_edges[i]->right->name = (char*) malloc(16 * sizeof(char));
-        card = ref_raw_tree->a_edges[i]->hashtbl[1]->num_items;
+        card = ref_raw_tree->a_edges[i]->hashtbl->num_items;
         if (card > n/2) { card = n - card; }
         avg_dist      = (double) trans_ind[i] * 1.0 / num_trees;
         sprintf(ref_raw_tree->a_edges[i]->right->name, "%d|%.6f|%d", ref_raw_tree->a_edges[i]->id, avg_dist,ref_tree->a_edges[i]->topo_depth);
@@ -704,7 +704,7 @@ int* species_to_move(Edge* re, Edge* be, int dist, int nb_taxa) {
   int nbdiff=0, nbequ=0;
 
   for(i = 0; i < nb_taxa; i++) {
-    if(lookup_id(re->hashtbl[1],i) != lookup_id(be->hashtbl[1],i)){
+    if(lookup_id(re->hashtbl,i) != lookup_id(be->hashtbl,i)){
       diff[nbdiff]=i;
       nbdiff++;
     } else {
