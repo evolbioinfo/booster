@@ -169,6 +169,7 @@ Node* newNode(Tree *t);
 Node* new_node(const char* name, Tree* t, int degree);
 Edge* new_edge(Tree* t);
 Tree* new_tree(const char* name);
+void addTip(Tree *t, char* name);
 Edge* connect_to_father(Node* father, Node* son, Tree* current_tree);
 Node* graft_new_node_on_branch(Edge* target_edge, Tree* tree, double ratio_from_left, double new_edge_length, char* node_name);
 
@@ -272,36 +273,36 @@ void regraft_branch_on_node(Edge* branch, Node* target_node, int dir);
   ******************* neatly implementing tree traversals ******
 ***************************************************************/
 
-void post_order_traversal_recur(Node* current, Node* origin, Tree* tree, void (*func)(Node*, Node*, Tree*));
-void post_order_traversal(Tree* t, void (*func)(Node*, Node*, Tree*));
+void post_order_traversal_recur(Node* current, Node* origin, Edge *e, Tree* tree, void (*func)(Node*, Node*, Edge*, Tree*));
+void post_order_traversal(Tree* t, void (*func)(Node*, Node*, Edge *e, Tree*));
 
 /* post order traversal with any data passed to the function call */
-void post_order_traversal_data_recur(Node* current, Node* origin, Tree* tree, void*, void (*func)(Node*, Node*, Tree*, void*));
-void post_order_traversal_data(Tree* t, void*, void (*func)(Node*, Node*, Tree*, void*));
+void post_order_traversal_data_recur(Node* current, Node* origin, Edge* e, Tree* tree, void*, void (*func)(Node*, Node*, Edge*, Tree*, void*));
+void post_order_traversal_data(Tree* t, void*, void (*func)(Node*, Node*, Edge*, Tree*, void*));
 
 
-void pre_order_traversal_recur(Node* current, Node* origin, Tree* tree, void (*func)(Node*, Node*, Tree*));
-void pre_order_traversal(Tree* t, void (*func)(Node*, Node*, Tree*));
+void pre_order_traversal_recur(Node* current, Node* origin, Edge *e, Tree* tree, void (*func)(Node*, Node*, Edge*, Tree*));
+void pre_order_traversal(Tree* t, void (*func)(Node*, Node*, Edge*, Tree*));
 
 /* pre order traversal with any data passed to the function call */
-void pre_order_traversal_data_recur(Node* current, Node* origin, Tree* tree, void* data, void (*func)(Node*, Node*, Tree*, void*));
-void pre_order_traversal_data(Tree* t, void* data, void (*func)(Node*, Node*, Tree*, void*));
+void pre_order_traversal_data_recur(Node* current, Node* origin, Edge *e, Tree* tree, void* data, void (*func)(Node*, Node*, Edge*, Tree*, void*));
+void pre_order_traversal_data(Tree* t, void* data, void (*func)(Node*, Node*, Edge*, Tree*, void*));
 
 /* bootstrap values */
 void update_bootstrap_supports_from_node_names(Tree* tree);
-void update_bootstrap_supports_doer(Node* current, Node* origin, Tree* tree);
+void update_bootstrap_supports_doer(Node* current, Node* origin, Edge * e, Tree* tree);
 
 
 /* node heights */
 
-void update_node_heights_post_doer(Node* target, Node* orig, Tree* t);
-void update_node_heights_pre_doer(Node* target, Node* orig, Tree* t);
+void update_node_heights_post_doer(Node* target, Node* orig, Edge *e, Tree* t);
+void update_node_heights_pre_doer(Node* target, Node* orig, Edge *e, Tree* t);
 void update_node_heights_post_alltree(Tree* tree);
 void update_node_heights_pre_alltree(Tree* tree);
 
 /* tree depth */
 /* Set the depth of all the nodes of the tree. */
-void update_node_depths_pre_doer(Node* target, Node* orig, Tree* t);
+void update_node_depths_pre_doer(Node* target, Node* orig, Edge *e, Tree* t);
 void prepare_rapid_TI_pre(Tree* tree);
 
 
@@ -311,7 +312,7 @@ int greatest_topo_depth(Tree* tree);
 
 /* WORKING WITH HASHTABLES */
 
-void update_hashtables_post_doer(Node* current, Node* orig, Tree* t);
+void update_hashtables_post_doer(Node* current, Node* orig, Edge *e, Tree* t);
 
 void update_hashtables_post_alltree(Tree* tree);
 void update_hashtables_pre_alltree(Tree* tree);
@@ -337,8 +338,8 @@ Tree * gen_rand_tree(int nbr_taxa, char **taxa_names);
 
 /* writing a tree */
 
-void write_nh_tree(Tree* tree, FILE* stream);
-void write_subtree_to_stream(Node* node, Node* node_from, FILE* stream);
+void write_nh_tree(Tree* tree, FILE* stream, bool newline);
+void write_subtree_to_stream(Node* node, Node* node_from, Edge *e, FILE* stream);
 
 /* freeing stuff */
 
@@ -445,7 +446,7 @@ Node** get_leaves(const Tree* tree);
 
 @warning  assumes binary rooted tree.
 */
-void prepare_rapid_TI_doer(Node* target, Node* orig, Tree* t);
+void prepare_rapid_TI_doer(Node* target, Node* orig, Edge *e, Tree* t);
 
 /* Set subtree size for all nodes.
 
@@ -457,7 +458,7 @@ void prepare_rapid_TI_post(Tree* tree);
 /* Print all nodes of the tree in a post-order traversal.
 */
 void print_nodes_post_order(Tree* t);
-void print_node_callback(Node* n, Node* m, Tree* t);
+void print_node_callback(Node* n, Node* m, Edge *e, Tree* t);
 void print_node(const Node* n);
 void print_node_TI(const Node* n);
 /* Print TI variables for a node in alt_tree.

@@ -297,7 +297,6 @@ int main (int argc, char* argv[]) {
     ref_raw_tree  = complete_parse_nh(big_string, &taxname_lookup_table, skip_hashtables); /* sets taxname_lookup_table en passant */
   }
 
-
   /***********************************************************************/
   /* Establishing the list of bootstrapped trees we are going to analyze */
   /***********************************************************************/
@@ -336,9 +335,9 @@ int main (int argc, char* argv[]) {
   }else{
     fbp(ref_tree, alt_tree_strings, taxname_lookup_table, num_trees, quiet);
   }
-  write_nh_tree(ref_tree, output_file);
+  write_nh_tree(ref_tree, output_file, true);
   if(output_raw_file!=NULL && ref_raw_tree!=NULL){
-    write_nh_tree(ref_raw_tree, output_raw_file);
+    write_nh_tree(ref_raw_tree, output_raw_file, true);
   }
 
   fclose(output_file);
@@ -414,6 +413,7 @@ void fbp(Tree *ref_tree, char **alt_tree_strings,char** taxname_lookup_table, in
       support   = (double) nb_found[i] * 1.0 / num_trees;
       sprintf(ref_tree->a_edges[i]->right->name, "%.6f", support);
       ref_tree->a_edges[i]->branch_support = support;
+      ref_tree->a_edges[i]->has_branch_support = true;
     }
   }
   free(nb_found);
@@ -510,7 +510,6 @@ void tbe(bool rapid, Tree *ref_tree, Tree *ref_raw_tree,
                              count_per_branch, dist_cutoff);
     assert_equal_TI(trans_ind_new[i_tree], trans_ind_tmp[i_tree], ref_tree);
     #endif
-
   }
   #pragma omp barrier
 

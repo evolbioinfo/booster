@@ -475,7 +475,7 @@ Node* graft_new_node_on_branch(Edge* target_edge, Tree* tree, double ratio_from_
 		Node* second_node = newNode(tree); /* will be the right node, also a leaf */
 		second_node->name=strdup(node_name);
 		addTip(tree,strdup(node_name));
-		Edge* only_edge = connect_to_father(tree->node0, second_node, tree);
+		Edge* only_edge = connect_to_father(second_node, tree->node0, tree);
 		only_edge->brlen = new_edge_length;
 		only_edge->had_zero_length = 0;
 		return second_node;
@@ -1137,7 +1137,7 @@ int copy_nh_stream_into_str(FILE* nh_stream, char* big_string) {
 	return 1; /* leaves the stream right after the terminal ';' */
 } /*end copy_nh_stream_into_str */
 
-Edge* connect_to_father(Node* father, Node* son, Tree* current_tree) {
+Edge* connect_to_father(Node* son, Node* father, Tree* current_tree) {
 	Edge* edge = (Edge*) malloc(sizeof(Edge));
 	edge->id = current_tree->nb_edges;
 	edge->hashtbl = NULL;
@@ -1186,7 +1186,6 @@ Edge* connect_to_father(Node* father, Node* son, Tree* current_tree) {
 // Copied for a large part from https://github.com/evolbioinfo/gotree/blob/master/io/newick/newick_parser.go
 Tree* parse_nh_string(char* in_str) {
 	Tree *t = (Tree *) malloc(sizeof(Tree));
-	int begin, end; /* to delimitate the string to further process */
 	int i; /* loop counter */
 	int in_length = strlen(in_str);
 	int level = 0;
@@ -1406,7 +1405,7 @@ char parse_recur(Tree* t, char* in_str, int* position, int in_length, Node* node
 			} else {
 				// Else we have a new tip
 				if(prev_token != -1 && prev_token != ','){
-					fprintf(stderr,"Newick Error: There should not be a tip name in this context: [%s], len: %d, prev_token: %c, position: %d",name,strlen(name),prev_token, *position);
+					fprintf(stderr,"Newick Error: There should not be a tip name in this context: [%s], len: %ld, prev_token: %c, position: %d",name,strlen(name),prev_token, *position);
 					Generic_Exit(__FILE__,__LINE__,__FUNCTION__,EXIT_FAILURE);
 				}
 				if(node == NULL ){
@@ -1416,7 +1415,7 @@ char parse_recur(Tree* t, char* in_str, int* position, int in_length, Node* node
 				new_node = newNode(t);
 				new_node->name = name;
 				addTip(t,strdup(name));
-				edge = connect_to_father(node, new_node, t);
+				edge = connect_to_father(new_node, node, t);
 				prev_token = 'n';
 			}
 			break;
@@ -1427,7 +1426,6 @@ char parse_recur(Tree* t, char* in_str, int* position, int in_length, Node* node
 Tree *complete_parse_nh(char* big_string, char*** taxname_lookup_table,
                         bool skip_hashtables) {
 	/* trick: iff taxname_lookup_table is NULL, we set it according to the tree read, otherwise we use it as the reference taxname lookup table */
-	int i;
  	Tree* mytree = parse_nh_string(big_string);
 	mytree->leaves = allocateLA(mytree->nb_taxa);
 		
@@ -1540,88 +1538,83 @@ void regraft_branch_on_node(Edge* edge, Node* target_node, int dir) {
 /* in all cases below we accept that origin can be NULL:
    this describes the situation where we are on the pseudoroot node. */
 
-void post_order_traversal_recur(Node* current, Node* origin, Tree* tree, void (*func)(Node*, Node*, Tree*)) {
+void post_order_traversal_recur(Node* current, Node* origin, Edge *e, Tree* tree, void (*func)(Node*, Node*, Edge*, Tree*)) {
 	/* does the post order traversal on current Node and its "descendants" (i.e. not including origin, who is a neighbour of current */
 	int i, n = current->nneigh;
-	int cur_to_orig = (origin ? dir_a_to_b(current, origin) : -1); /* direction from the current node to the origin of the traversal */
 
-	/* process children first */
-	if (cur_to_orig == -1) { /* current is the pseudoroot node */
-		for(i=0; i < n; i++) post_order_traversal_recur(current->neigh[i], current, tree, func);
-	} else {
-		for(i=1; i < n; i++) post_order_traversal_recur(current->neigh[(cur_to_orig+i)%n], current, tree, func); /* no iter when n==1 (leaf) */
+	for(i=0; i < n; i++){
+		if(current->neigh[i] != origin){
+			post_order_traversal_recur(current->neigh[i], current, current->br[i], tree, func);
+		}
 	}
 
 	/* and then in any case, call the function on the current node */
-	func(current, origin /* may be NULL, it's up to func to deal with that properly */, tree);
+	func(current, origin /* may be NULL, it's up to func to deal with that properly */, e, tree);
 }
 
-void post_order_traversal(Tree* t, void (*func)(Node*, Node*, Tree*)) {
-	post_order_traversal_recur(t->node0, NULL, t, func);
+void post_order_traversal(Tree* t, void (*func)(Node*, Node*, Edge*, Tree*)) {
+	post_order_traversal_recur(t->node0, NULL, NULL, t, func);
 }
 
 /* Post order traversal with any data that can be passed to the recur function */
-void post_order_traversal_data_recur(Node* current, Node* origin, Tree* tree, void* data, void (*func)(Node*, Node*, Tree*, void*)) {
+void post_order_traversal_data_recur(Node* current, Node* origin, Edge *e, Tree* tree, void* data, void (*func)(Node*, Node*, Edge*, Tree*, void*)) {
   /* does the post order traversal on current Node and its "descendants" (i.e. not including origin, who is a neighbour of current */
   int i, n = current->nneigh;
-  int cur_to_orig = (origin ? dir_a_to_b(current, origin) : -1); /* direction from the current node to the origin of the traversal */
 
   /* process children first */
-  if (cur_to_orig == -1) { /* current is the pseudoroot node */
-    for(i=0; i < n; i++) post_order_traversal_data_recur(current->neigh[i], current, tree, data, func);
-  } else {
-    for(i=1; i < n; i++) post_order_traversal_data_recur(current->neigh[(cur_to_orig+i)%n], current, tree, data, func); /* no iter when n==1 (leaf) */
-  }
+	for(i=0; i < n; i++){
+		if(current->neigh[i]!=origin){
+			post_order_traversal_data_recur(current->neigh[i], current, current->br[i], tree, data, func);
+		}
+	}
 
   /* and then in any case, call the function on the current node */
-  func(current, origin /* may be NULL, it's up to func to deal with that properly */, tree, data);
+  func(current, origin /* may be NULL, it's up to func to deal with that properly */, e, tree, data);
 }
 
-void post_order_traversal_data(Tree* t, void* data, void (*func)(Node*, Node*, Tree*,void*)) {
-  post_order_traversal_data_recur(t->node0, NULL, t, data, func);
+void post_order_traversal_data(Tree* t, void* data, void (*func)(Node*, Node*, Edge*, Tree*,void*)) {
+  post_order_traversal_data_recur(t->node0, NULL, NULL, t, data, func);
 }
 
-void pre_order_traversal_recur(Node* current, Node* origin, Tree* tree, void (*func)(Node*, Node*, Tree*)) {
+void pre_order_traversal_recur(Node* current, Node* origin, Edge *e, Tree* tree, void (*func)(Node*, Node*, Edge*, Tree*)) {
 	/* does the pre order traversal on current Node and its "descendants" (i.e. not including origin, who is a neighbour of current */
 	int i, n = current->nneigh;
-	int cur_to_orig = (origin ? dir_a_to_b(current, origin) : -1); /* direction from the current node to the origin of the traversal */
 
 	/* in any case, call the function on the current node first */
-	func(current, origin /* may be NULL, it's up to func to deal with that properly */, tree);
+	func(current, origin /* may be NULL, it's up to func to deal with that properly */, e, tree);
 
 	/* if current is not a leaf, process its children */
-	if (cur_to_orig == -1) { /* current is the pseudoroot node */
-		for(i=0; i < n; i++) pre_order_traversal_recur(current->neigh[i], current, tree, func);
-	} else {
-		for(i=1; i < n; i++) pre_order_traversal_recur(current->neigh[(cur_to_orig+i)%n], current, tree, func); /* no iter when n==1 (leaf) */
+	for(i=0; i < n; i++){
+		if(current->neigh[i]!=origin){
+			pre_order_traversal_recur(current->neigh[i], current, current->br[i], tree, func);
+		}
 	}
 }
 
 
-void pre_order_traversal(Tree* t, void (*func)(Node*, Node*, Tree*)) {
-	pre_order_traversal_recur(t->node0, NULL, t, func);
+void pre_order_traversal(Tree* t, void (*func)(Node*, Node*, Edge*, Tree*)) {
+	pre_order_traversal_recur(t->node0, NULL, NULL, t, func);
 }
 
 /* Pre order traversal with any data that can be passed to the recur function */
-void pre_order_traversal_data_recur(Node* current, Node* origin, Tree* tree, void* data, void (*func)(Node*, Node*, Tree*, void*)) {
+void pre_order_traversal_data_recur(Node* current, Node* origin, Edge* e, Tree* tree, void* data, void (*func)(Node*, Node*, Edge*, Tree*, void*)) {
 	/* does the pre order traversal on current Node and its "descendants" (i.e. not including origin, who is a neighbour of current */
 	int i, n = current->nneigh;
-	int cur_to_orig = (origin ? dir_a_to_b(current, origin) : -1); /* direction from the current node to the origin of the traversal */
 
 	/* in any case, call the function on the current node first */
-	func(current, origin /* may be NULL, it's up to func to deal with that properly */, tree, data);
+	func(current, origin /* may be NULL, it's up to func to deal with that properly */, e, tree, data);
 
 	/* if current is not a leaf, process its children */
-	if (cur_to_orig == -1) { /* current is the pseudoroot node */
-	  for(i=0; i < n; i++) pre_order_traversal_data_recur(current->neigh[i], current, tree, data, func);
-	} else {
-	  for(i=1; i < n; i++) pre_order_traversal_data_recur(current->neigh[(cur_to_orig+i)%n], current, tree, data, func); /* no iter when n==1 (leaf) */
+	for(i=0; i < n; i++){
+		if(current->neigh[i]!=origin){
+			pre_order_traversal_data_recur(current->neigh[i], current, current->br[i], tree, data, func);
+		}
 	}
 }
 
 
-void pre_order_traversal_data(Tree* t, void* data, void (*func)(Node*, Node*, Tree*, void*)) {
-  pre_order_traversal_data_recur(t->node0, NULL, t, data, func);
+void pre_order_traversal_data(Tree* t, void* data, void (*func)(Node*, Node*, Edge*, Tree*, void*)) {
+  pre_order_traversal_data_recur(t->node0, NULL, NULL, t, data, func);
 }
 
 
@@ -1632,7 +1625,7 @@ void update_bootstrap_supports_from_node_names(Tree* tree) {
 	pre_order_traversal(tree,&update_bootstrap_supports_doer);
 }
 
-void update_bootstrap_supports_doer(Node* current, Node* origin, Tree* tree) {
+void update_bootstrap_supports_doer(Node* current, Node* origin, Edge *e, Tree* tree) {
 	/* a branch takes its support value from its descendant node (son).
 	   The current node under examination will give its value (node name) to its father branch, if that one exists.
 	   We modify here the bootstrap support on the edge between current and origin. It is assumed that the node "origin" is on
@@ -1640,13 +1633,12 @@ void update_bootstrap_supports_doer(Node* current, Node* origin, Tree* tree) {
 	if(!origin || current->nneigh == 1) return; /* nothing to do for a leaf or for the root */
 
 	double value;
-	Edge* edge = current->br[dir_a_to_b(current, origin)];
 
 	if (current->name && strlen(current->name) > 0 && sscanf(current->name,"%lf", &value) == 1) { /* if succesfully parsing a number */
-		edge->has_branch_support = 1;
-		edge->branch_support = value; 
+		e->has_branch_support = 1;
+		e->branch_support = value; 
 	} else {
-		edge->has_branch_support = 0;
+		e->has_branch_support = 0;
 	}
 } /* end of update_bootstrap_supports_doer */
 
@@ -1655,7 +1647,7 @@ void update_bootstrap_supports_doer(Node* current, Node* origin, Tree* tree) {
 
 /* CALCULATING NODE HEIGHTS */
 
-void update_node_heights_post_doer(Node* target, Node* orig, Tree* t) {
+void update_node_heights_post_doer(Node* target, Node* orig, Edge *e, Tree* t) {
 	/* here we update the mheight of the target node */
 	int i;
 	double mheight = MAX_MHEIGHT;
@@ -1664,28 +1656,28 @@ void update_node_heights_post_doer(Node* target, Node* orig, Tree* t) {
 	else {
 		/* the following loop also takes care of the case where origin == NULL (target is root) */
 		for (i=0; i < target->nneigh; i++) {
-			if (target->neigh[i] == orig) continue;
-			mheight = min_double(mheight, target->neigh[i]->mheight + (target->br[i]->had_zero_length ? 0.0 : target->br[i]->brlen));
+			if (target->neigh[i] != orig){
+				mheight = min_double(mheight, target->neigh[i]->mheight + (target->br[i]->had_zero_length ? 0.0 : target->br[i]->brlen));
+			}
 		}
 		target->mheight = mheight;
 	}
 } /* end of update_node_heights_post_doer */
 
 
-void update_node_heights_pre_doer(Node* target, Node* orig, Tree* t) {
+void update_node_heights_pre_doer(Node* target, Node* orig, Edge * e, Tree* t) {
 	/* when we enter this function, orig already has its mheight set to its final value. Update the target if its current mheight is larger
 	   than the one we get taking into account the min path to a leave from target via origin */
 	if (!orig) return; /* nothing to do on the root for this preorder: value is already correctly set by the postorder */
 
-	int dir_target_to_orig = dir_a_to_b(target, orig);
-	double alt_height = orig->mheight + (target->br[dir_target_to_orig]->had_zero_length ? 0.0 : target->br[dir_target_to_orig]->brlen);
+	double alt_height = orig->mheight + (e->had_zero_length ? 0.0 : e->brlen);
 	if (alt_height < target->mheight) target->mheight = alt_height;
 } /* end of update_node_heights_pre_doer */
 
 /*
 Set the depth of this node based on its parent's depth.
 */
-void update_node_depths_pre_doer(Node* target, Node* orig, Tree* t) {
+void update_node_depths_pre_doer(Node* target, Node* orig, Edge *e, Tree* t) {
 	if(!orig) { //root
     target->depth = 0;
     return;
@@ -1731,24 +1723,23 @@ int greatest_topo_depth(Tree* tree) {
 
 /* WORKING WITH HASHTABLES */
 
-void update_hashtables_post_doer(Node* current, Node* orig, Tree* t) {
-	/* we are going to update one of the two hashtables sitting on the branch between current and orig. */
+void update_hashtables_post_doer(Node* current, Node* orig, Edge *e, Tree* t) {
+	/* we are going to update the bitvector of e. */
 	if (orig==NULL) return;
 	int i, n = current->nneigh;
-	int curr_to_orig = dir_a_to_b(current, orig); 
-	Edge* br = current->br[curr_to_orig], *br2; /* br: current to orig; br2: any _other_ branch from current */
 
 	for(i=1 ; i < n ; i++) {
-		br2 = current->br[(curr_to_orig + i)%n];
-		/* we are going to update the info on br with the info from br2 */
-		update_id_hashtable(br2->hashtbl /* source */, br->hashtbl /* dest */);
+		if(current->br[i]!=e){
+			/* we are going to update the info on br with the info from br2 */
+			update_id_hashtable(current->br[i]->hashtbl /* source */, e->hashtbl /* dest */);
+		}
 	}
 
 	/* but if n = 1 we haven't done anything (leaf): we must put the info corresponding to the taxon into the branch */
 	if (n == 1) {
-		assert(br->right == current);
+		assert(e->right == current);
 		/* add the id of the taxon to the right hashtable of the branch */
-		add_id(br->hashtbl, get_tax_id_from_tax_name(current->name, t->taxname_lookup_table, t->nb_taxa));
+		add_id(e->hashtbl, get_tax_id_from_tax_name(current->name, t->taxname_lookup_table, t->nb_taxa));
 	}
 } /* end update_hashtables_post_doer */
 
@@ -1917,51 +1908,56 @@ void update_all_i_c_post_order_boot_tree(Tree* ref_tree, Tree* boot_tree, short 
 
 /* writing a tree to some output (stream or string) */
 
-void write_nh_tree(Tree* tree, FILE* stream) {
+void write_nh_tree(Tree* tree, FILE* stream, bool newline) {
 	/* writing the tree from the current position in the stream */
 	if (!tree) return;
 	Node* node = tree->node0; /* root or pseudoroot node */
 	int i, n = node->nneigh;
 	putc('(', stream);
-	for(i=0; i < n-1; i++) {
-		write_subtree_to_stream(node->neigh[i], node, stream); /* a son */
-		putc(',', stream);
+	for(i=0; i < n; i++) {
+		if(i>0)
+			putc(',', stream);
+		write_subtree_to_stream(node->neigh[i], node, node->br[i], stream); /* a son */
 	}
-	write_subtree_to_stream(node->neigh[i], node, stream); /* last son */
 	putc(')', stream);
 
-	if (node->name) fprintf(stream, "%s", node->name);
+	if (node->name) fprintf(stream, "--%s--", node->name);
 	/* terminate with a semicol AND and end of line */
 	putc(';', stream); //putc('\n', stream);
+	if(newline)
+		putc('\n',stream);
 }
 
 /* the following function writes the subtree having root "node" and not including "node_from". */
-void write_subtree_to_stream(Node* node, Node* node_from, FILE* stream) {
-	int i, direction_to_exclude, n = node->nneigh;
-	if (node == NULL || node_from == NULL) return;
+void write_subtree_to_stream(Node* current, Node* parent, Edge *e, FILE* stream) {
+	int i, n = current->nneigh;
+	//if (node == NULL || node_from == NULL) return;
 
 	if(n == 1) {
 		/* terminal node */
-		fprintf(stream, "%s:%g", (node->name ? node->name : ""), node->br[0]->brlen); /* distance to father */
+		fprintf(stream, "%s:%g", (current->name ? current->name : ""), e->brlen); /* distance to father */
 	} else {
-	        direction_to_exclude = dir_a_to_b(node, node_from);	
-
 		putc('(', stream);
 		/* we have to write (n-1) subtrees in total. The last print is not followed by a comma */
-		for(i=1; i < n-1; i++) {
-			write_subtree_to_stream(node->neigh[(direction_to_exclude+i) % n], node, stream); /* a son */
-			putc(',', stream);
+		int nc = 0;
+		for(i=0; i < n; i++) {
+			if(current->neigh[i]!=parent){
+				if(nc>0){
+					putc(',', stream);
+				}
+				write_subtree_to_stream(current->neigh[i], current, current->br[i], stream); /* a son */
+				nc++;
+			}
 		}
-		write_subtree_to_stream(node->neigh[(direction_to_exclude+i) % n], node, stream); /* last son */
 		putc(')', stream);
-		if(node->br[0]->has_branch_support){
-			fprintf(stream, "%g:%g", node->br[0]->branch_support, node->br[0]->brlen); /* distance to father */
+
+		if(e->has_branch_support){
+			fprintf(stream, "%g:%g", e->branch_support, e->brlen); /* distance to father */
 		}else{
-			fprintf(stream, "%s:%g", (node->name ? node->name : ""), node->br[0]->brlen); /* distance to father */
+			fprintf(stream, "%s:%g", (current->name ? current->name : "None"), e->brlen); /* distance to father */
 		}
 	}
 } /* end write_subtree_to_stream */
-		
 
 
 /* freeing */
@@ -2280,25 +2276,26 @@ This is to be used in a post-order traversal of the tree.
 @note     also set the edge->topo_depth (# leaves on light side of the edge)
 @warning  assumes binary rooted tree.
 */
-void prepare_rapid_TI_doer(Node* target, Node* orig, Tree* t) {
+void prepare_rapid_TI_doer(Node* target, Node* orig, Edge *e, Tree* t) {
     // Set subtreesize:
   if(target->nneigh == 1)           //leaf
   {
-    target->br[0]->topo_depth = target->subtreesize = 1;
+    e->topo_depth = target->subtreesize = 1;
     addLeafLA(t->leaves, target);
   }
   else                              //internal node
   {
     target->subtreesize = 0;
-    if(target == t->node0)          //root
-      target->subtreesize = target->neigh[0]->subtreesize;
 
-    for(int i=1; i < target->nneigh; i++)
-      target->subtreesize += target->neigh[i]->subtreesize;
+    for(int i=0; i < target->nneigh; i++){
+		if(target->neigh[i]!=orig){
+	      target->subtreesize += target->neigh[i]->subtreesize;
+		}
+	}
 
     if(target != t->node0)          //set topo_depth for edges above nodes
-      target->br[0]->topo_depth = min(target->subtreesize,
-                                      t->nb_taxa - target->subtreesize);
+      e->topo_depth = min(target->subtreesize,
+	  						t->nb_taxa - target->subtreesize);
   }
   
     // Set the rest:
@@ -2327,7 +2324,7 @@ Print all nodes of the tree in a post-order traversal.
 void print_nodes_post_order(Tree* t) {
   post_order_traversal(t, &print_node_callback);
 }
-void print_node_callback(Node* n, Node* m, Tree* t) {
+void print_node_callback(Node* n, Node* m, Edge *e, Tree* t) {
   print_node(n);
 }
 
