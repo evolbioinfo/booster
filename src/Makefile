@@ -6,8 +6,8 @@ UNAME := $(shell uname)
 #Use -DDEBUG to print debug output.  Use -DNDEBUG to ignore asserts.
 #CFLAGS = -Wall -g -DVERSION=\"$(GIT_VERSION)\" #-DDEBUG -fno-stack-protector
 #CFLAGS_OMP = -Wall -g -fopenmp #-DDEBUG
-CFLAGS = -Wall -O3 -DVERSION=\"$(GIT_VERSION)\" -DNDEBUG
-CFLAGS_OMP = -Wall -O3 -fopenmp -DNDEBUG
+CFLAGS = -Wall -O3 -DVERSION=\"$(GIT_VERSION)\" -DNDEBUG -ggdb
+CFLAGS_OMP = -Wall -O3 -fopenmp -DNDEBUG -ggdb
 
 # Compiler: gcc
 ifeq ($(cross),win32)

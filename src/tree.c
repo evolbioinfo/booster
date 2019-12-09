@@ -242,7 +242,7 @@ Node* new_node(const char* name, Tree* t, int degree) {
 	nn->nneigh = degree;
 	nn->neigh = malloc(degree * sizeof(Node*));
 	nn->br = malloc(degree * sizeof(Edge*));
-	nn->id = t->next_avail_node_id++;
+	nn->id = t->nb_nodes;
 	nn->nneigh_space = degree;
 	if(degree==1 && !name) { fprintf(stderr,"Fatal error : won't create a leaf with no name. Aborting.\n"); Generic_Exit(__FILE__,__LINE__,__FUNCTION__,EXIT_FAILURE);}
 	if(name) { nn->name = strdup(name); } else nn->name = NULL;
@@ -263,7 +263,7 @@ Node* new_node(const char* name, Tree* t, int degree) {
 
 Edge* new_edge(Tree* t) {
 	Edge* ne = (Edge*) malloc(sizeof(Edge));
-	ne->id = t->next_avail_edge_id++;
+	ne->id = t->nb_edges;
 	ne->has_branch_support = 0;
 	ne->hashtbl = NULL;
 	ne->subtype_counts[0] = ne->subtype_counts[1] = NULL;
@@ -294,10 +294,6 @@ Tree* new_tree(const char* name) {
 
 	t->taxname_lookup_table = NULL;
 
-	t->next_avail_node_id = 0; /* root node has id 0 */
-	t->next_avail_edge_id = 0; /* no branch added so far */
-	t->next_avail_taxon_id = 0; /* no taxon added so far */
-	
 	t->node0 = newNode(t);	/* this first node _is_ a leaf */
 	t->node0->name=strdup(name);
 	addTip(t,strdup(name));
@@ -316,7 +312,6 @@ Tree* copy_tree_rapidTI(Tree* oldt) {
     //Initialize unused stuff:
   newt->taxa_names = NULL;
   newt->taxname_lookup_table = NULL;
-  newt->next_avail_node_id = newt->next_avail_edge_id = newt->next_avail_taxon_id = 0;
 
     //Initialize used stuff:
   newt->nb_taxa = oldt->nb_taxa;
@@ -473,7 +468,7 @@ Node* graft_new_node_on_branch(Edge* target_edge, Tree* tree, double ratio_from_
 
 	if(target_edge == NULL) {
 		/* here we treat the special case of the insertion of the second node (creation of the very first branch) */
-		if (tree->nb_edges!= 0 || tree->next_avail_node_id != 1 || tree->next_avail_edge_id != 0) {
+		if (tree->nb_edges!= 0 || tree->nb_nodes != 1) {
 		  fprintf(stderr,"Error : I get a NULL branch pointer while there is at least one existing branch in the tree. Aborting.\n");
 		  Generic_Exit(__FILE__,__LINE__,__FUNCTION__,EXIT_FAILURE);
 		}
@@ -1144,8 +1139,8 @@ int copy_nh_stream_into_str(FILE* nh_stream, char* big_string) {
 
 Edge* connect_to_father(Node* father, Node* son, Tree* current_tree) {
 	Edge* edge = (Edge*) malloc(sizeof(Edge));
-	edge->id = current_tree->next_avail_edge_id++;
-
+	edge->id = current_tree->nb_edges;
+	edge->hashtbl = NULL;
 	// Resize arrays if necessary
 	if(edge->id>=current_tree->nb_edges_space){
 		current_tree->nb_edges_space *= 2;
@@ -1199,7 +1194,6 @@ Tree* parse_nh_string(char* in_str) {
 
 	i = 0; while (isspace(in_str[i]) && i<in_length) i++;
 	if (in_str[i] != '(') { fprintf(stderr,"Error: tree doesn't start with an opening parenthesis.\n"); return NULL; }
-
 	t->nb_taxa = 0;
 	t->nb_nodes = 0;
 	t->nb_edges = 0;
@@ -1210,14 +1204,10 @@ Tree* parse_nh_string(char* in_str) {
 	
 	t->a_edges = (Edge**) calloc(t->nb_edges_space, sizeof(Edge*));
 	t->a_nodes = (Node**) calloc(t->nb_nodes_space, sizeof(Node*));
-	t->taxa_names = (char**) malloc(t->nb_taxa_space * sizeof(char*));
+	t->taxa_names = (char**) calloc(t->nb_taxa_space, sizeof(char*));
 
 	t->taxname_lookup_table = NULL;
 
-	t->next_avail_node_id = 0; /* root node has id 0 */
-	t->next_avail_edge_id = 0; /* no branch added so far */
-	t->next_avail_taxon_id = 0; /* no taxon added so far */
-	
 	// May have information inside [] before the tree
 	while (isspace(in_str[i]) && i<in_length){
 		i++;
@@ -1234,7 +1224,6 @@ Tree* parse_nh_string(char* in_str) {
 			i++;
 		}
   	}
-
 	//Next token should be a "(" token.
 	if(in_str[i] != '(') {
 		fprintf(stderr,"Error: found %c, expected '('.\n",in_str[i]); return NULL;
@@ -1259,8 +1248,7 @@ Tree* parse_nh_string(char* in_str) {
 
 Node* newNode(Tree *t){
 	Node* node = (Node*) malloc(sizeof(Node));
-	node->id = t->next_avail_node_id;
-	t->next_avail_node_id++;
+	node->id = t->nb_nodes;
 	node->name = NULL;
 	node->comment = NULL;
 
@@ -1285,13 +1273,12 @@ Node* newNode(Tree *t){
 // Adds a tip name to the tree
 void addTip(Tree *t, char* name){
 	// Resize arrays if necessary
-	t->nb_taxa++;
-	
 	if(t->nb_taxa>=t->nb_taxa_space){
 		t->nb_taxa_space *= 2;
 		t->taxa_names = realloc(t->taxa_names, t->nb_taxa_space*sizeof(char*));
 	}
-	t->taxa_names[t->nb_taxa-1] = name;
+	t->taxa_names[t->nb_taxa] = name;
+	t->nb_taxa++;
 }
 
 bool isNewickChar(char ch){

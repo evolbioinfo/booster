@@ -136,9 +136,6 @@ typedef struct __Tree {
   	int nb_nodes_space; // Space currently allocated for nodes
   
 	char** taxa_names; /* store only once the taxa names */
-	int next_avail_node_id;
-	int next_avail_edge_id;
-	int next_avail_taxon_id;
 	char** taxname_lookup_table;   // maps taxa id [0,nb_taxa-1] to name
 
          // Variables used for rapid transfer index calculation:
