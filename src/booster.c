@@ -374,14 +374,13 @@ void fbp(Tree *ref_tree, char **alt_tree_strings,char** taxname_lookup_table, in
 
     /****************************************************/
     /*     comparison of the bipartitions, FBP method   */
-    /****************************************************/		  
+    /****************************************************/
     for (j = 0; j <  alt_tree->nb_edges; j++) {
       bitset_hashmap_putvalue(hm,alt_tree->a_edges[j]->hashtbl[1],alt_tree->nb_taxa,j);
     }
     for (j = 0; j <  ref_tree->nb_edges; j++) {
       // We query the hashmap to see if the edge is present, and then get its reference index
-      int refindex = bitset_hashmap_value(hm, alt_tree->a_edges[j]->hashtbl[1], alt_tree->nb_taxa);
-      
+      int refindex = bitset_hashmap_value(hm, ref_tree->a_edges[j]->hashtbl[1], ref_tree->nb_taxa);
       if (refindex>-1){
 	      #pragma omp atomic update
 	      nb_found[j]++;
