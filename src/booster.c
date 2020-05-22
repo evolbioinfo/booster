@@ -349,16 +349,13 @@ void fbp(Tree *ref_tree, char **alt_tree_strings,char** taxname_lookup_table, in
   int i_tree,i;
   short unsigned* nb_found = malloc(ref_tree->nb_edges * sizeof(short unsigned));
   double support;
-  // We initialize the reference edge hashmap
-  bitset_hashmap *hm = new_bitset_hashmap(ref_tree->nb_edges*2, 0.75);
 
   for(i=0; i< ref_tree->nb_edges; i++){
     nb_found[i] = 0;
-    bitset_hashmap_putvalue(hm,ref_tree->a_edges[i]->hashtbl[1],ref_tree->nb_taxa,i);
   }
 
  
-#pragma omp parallel for private( j, alt_tree, support) shared(nb_found, hm, ref_tree, alt_tree_strings, taxname_lookup_table, quiet, num_trees) schedule(dynamic)
+#pragma omp parallel for private( j, alt_tree, support) shared(nb_found, ref_tree, alt_tree_strings, taxname_lookup_table, quiet, num_trees) schedule(dynamic)
   for(i_tree=0; i_tree< num_trees; i_tree++){
     if(!quiet) fprintf(stderr,"New bootstrap tree : %d\n",i_tree);
     alt_tree = complete_parse_nh(alt_tree_strings[i_tree], &taxname_lookup_table);
@@ -372,18 +369,26 @@ void fbp(Tree *ref_tree, char **alt_tree_strings,char** taxname_lookup_table, in
       continue; /* some files maybe not containing trees */
     }
 
+    // We initialize the reference edge hashmap
+    bitset_hashmap *hm = new_bitset_hashmap(alt_tree->nb_edges*2, 0.75);
+
     /****************************************************/
     /*     comparison of the bipartitions, FBP method   */
     /****************************************************/		  
     for (j = 0; j <  alt_tree->nb_edges; j++) {
+      bitset_hashmap_putvalue(hm,alt_tree->a_edges[j]->hashtbl[1],alt_tree->nb_taxa,j);
+    }
+    for (j = 0; j <  ref_tree->nb_edges; j++) {
       // We query the hashmap to see if the edge is present, and then get its reference index
       int refindex = bitset_hashmap_value(hm, alt_tree->a_edges[j]->hashtbl[1], alt_tree->nb_taxa);
+      
       if (refindex>-1){
-	#pragma omp atomic update
-	nb_found[refindex]++;
+	      #pragma omp atomic update
+	      nb_found[j]++;
       }
     }
     free_tree(alt_tree);
+    free_bitset_hashmap(hm);
   }
 
   #pragma omp barrier
@@ -400,7 +405,6 @@ void fbp(Tree *ref_tree, char **alt_tree_strings,char** taxname_lookup_table, in
     }
   }
   free(nb_found);
-  free_bitset_hashmap(hm);
 }
 
 void tbe(Tree *ref_tree, Tree *ref_raw_tree, char **alt_tree_strings,char** taxname_lookup_table, FILE *stat_file, int num_trees, int quiet, double dist_cutoff, int count_per_branch){
